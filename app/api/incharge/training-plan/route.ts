@@ -15,9 +15,6 @@ const config = {
 /* ===================== POST ===================== */
 export async function POST(req: Request) {
 
-
-
-  
   try {
     const body = await req.json();
     console.log("RECEIVED:", body);
@@ -29,7 +26,6 @@ export async function POST(req: Request) {
       year,
       responsible_person,
       target_date,
-      evidence_file,
       training_location,
     } = body;
 
@@ -41,7 +37,7 @@ export async function POST(req: Request) {
       .input("year", sql.VarChar(10), year || null)
       .input("responsible_person", sql.NVarChar(150), responsible_person || null)
       .input("target_date", sql.Date, target_date || null)
-      .input("evidence_file", sql.NVarChar(255), evidence_file || null)
+     
       .input("training_location", sql.NVarChar(20), training_location || null)
       .input("status", sql.Bit, 1)
       .query(`
@@ -52,7 +48,7 @@ export async function POST(req: Request) {
           year,
           responsible_person,
           target_date,
-          evidence_file,
+          
           training_location,
           status,
           created_at
@@ -64,7 +60,7 @@ export async function POST(req: Request) {
           @year,
           @responsible_person,
           @target_date,
-          @evidence_file,
+         
           @training_location,
           @status,
           GETDATE()
@@ -92,7 +88,7 @@ export async function GET() {
         TP.responsible_person,
         TP.target_date,
         TP.training_location,
-        TP.evidence_file,
+        
         E.emp_name
       FROM dbo.TrainingPlan TP
       INNER JOIN dbo.Employees E

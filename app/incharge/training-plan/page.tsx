@@ -16,7 +16,7 @@ interface Plan {
   responsible_person: string;
   target_date: string;
   training_location: string;
-  evidence_file: string;
+  
 }
 
 export default function TrainingPlanPage() {
@@ -31,7 +31,7 @@ export default function TrainingPlanPage() {
     responsible_person: "",
     target_date: "",
     training_location: "",
-    evidence_file: "",
+    
   });
 
   /* =====================
@@ -63,34 +63,48 @@ export default function TrainingPlanPage() {
   /* =====================
      SUBMIT FORM
   ===================== */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    if (!formData.Id) {
-      alert("Please select employee");
-      return;
-    }
+  if (!formData.Id) {
+    alert("Please select employee");
+    return;
+  }
 
-    const payload = {
-      plan_desc: formData.plan_desc,
-      employee_id: formData.Id,      // ✅ FIXED
-      year: formData.year,
-      responsible_person: formData.responsible_person,
-      target_date: formData.target_date,
-      training_location: formData.training_location,
-      evidence_file: formData.evidence_file,
-    };
+  const payload = {
+    plan_desc: formData.plan_desc,
+    employee_id: formData.Id,
+    year: formData.year,
+    responsible_person: formData.responsible_person,
+    target_date: formData.target_date,
+    training_location: formData.training_location,
+  };
 
-    console.log("SENDING PAYLOAD:", payload);
+  console.log("SENDING PAYLOAD:", payload);
 
-    await fetch("/api/incharge/training-plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+  const res = await fetch("/api/incharge/training-plan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+
+  if (data.success) {
+    alert("Training plan submitted successfully ✅"); // ⭐ POPUP
+
+    setFormData({
+      Id: "",
+      plan_desc: "",
+      year: "",
+      responsible_person: "",
+      target_date: "",
+      training_location: "",
     });
 
     loadPlans();
-  };
+  }
+};
 
   /* =====================
      DELETE
@@ -249,27 +263,7 @@ export default function TrainingPlanPage() {
               </select>
             </div>
 
-            {/* Evidence */}
-            <div>
-              <label className="text-sm font-medium">
-                Evidence (Certificate / Proof)
-              </label>
-
-              <input
-                type="file"
-                className="w-full border rounded px-4 py-2 mt-1"
-                onChange={e =>
-                  setFormData({
-                    ...formData,
-                    evidence_file: e.target.files?.[0]?.name || "",
-                  })
-                }
-              />
-
-              <p className="text-xs text-slate-500 mt-1">
-                Only filename will be saved
-              </p>
-            </div>
+           
 
             <div className="lg:col-span-3">
               <button className="bg-indigo-600 text-white px-8 py-2 rounded">
@@ -294,7 +288,7 @@ export default function TrainingPlanPage() {
                 <th className="p-3">Responsible</th>
                 <th className="p-3">Target Date</th>
                 <th className="p-3">Location</th>
-                <th className="p-3">Evidence</th>
+                
                 <th className="p-3">Year</th>
                 <th className="p-3">Action</th>
               </tr>
@@ -308,7 +302,7 @@ export default function TrainingPlanPage() {
                   <td className="p-3">{p.responsible_person}</td>
                   <td className="p-3">{p.target_date.split("T")[0]}</td>
                   <td className="p-3">{p.training_location}</td>
-                  <td className="p-3">{p.evidence_file}</td>
+                  
                   <td className="p-3"> {p.year}</td>
                  
                   <td className="p-3">

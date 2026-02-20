@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 
+/* ================= INTERFACE ================= */
 interface Employee {
   emp_code: string;
   emp_name: string;
   designation: string;
   department: string;
   functional_area: string;
+  Direct_Manager_Name: string; // ✅ NEW FIELD
 }
 
 export default function InChargeEmployeesPage() {
@@ -22,6 +24,7 @@ export default function InChargeEmployeesPage() {
     designation: "",
     department: "",
     functional_area: "",
+    Direct_Manager_Name: "", // ✅ NEW FIELD
   });
 
   /* ================= LOAD EMPLOYEES ================= */
@@ -30,7 +33,7 @@ export default function InChargeEmployeesPage() {
       cache: "no-store",
     });
     const data = await res.json();
-    console.log(data)
+    console.log("EMP LIST:", data);
     setEmployees(data);
   };
 
@@ -40,56 +43,63 @@ export default function InChargeEmployeesPage() {
 
   /* ================= SAVE ================= */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (isSubmitting) return;
+  if (isSubmitting) return;
 
-    /* ===== GRIDVIEW DUPLICATE CHECK (ONLY FOR ADD) ===== */
-    if (!editingCode) {
-      const alreadyInGrid = employees.some(
-        (emp) => emp.emp_code === formData.emp_code,
-      );
+  if (!editingCode) {
+    const alreadyInGrid = employees.some(
+      (emp) => emp.emp_code === formData.emp_code
+    );
 
-      if (alreadyInGrid) {
-        alert("Employee Code already exists in the list!");
-        return;
-      }
+    if (alreadyInGrid) {
+      alert("Employee Code already exists in the list!");
+      return;
+    }
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    const res = await fetch("/api/incharge/get_employees", {
+      method: editingCode ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+
+    if (!res.ok) {
+      alert("Failed to save employee");
+      return;
     }
 
-    setIsSubmitting(true);
+    const data = await res.json();
 
-    try {
-      const res = await fetch("/api/incharge/get_employees", {
-        method: editingCode ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+    // ✅ SUCCESS POPUP
+    alert("Employee data submitted successfully ✅");
 
-      if (!res.ok) {
-        alert("Failed to save employee");
-        return;
-      }
+    await loadEmployees();
 
-      await loadEmployees();
+    setFormData({
+      emp_code: "",
+      emp_name: "",
+      designation: "",
+      department: "",
+      functional_area: "",
+      Direct_Manager_Name: "",
+    });
 
-      setFormData({
-        emp_code: "",
-        emp_name: "",
-        designation: "",
-        department: "",
-        functional_area: "",
-      });
+    setEditingCode(null);
 
-      setEditingCode(null); // ✅ reset edit mode
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   /* ================= UI ================= */
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 py-10">
       <div className="max-w-7xl mx-auto px-6">
+
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-slate-800">
@@ -100,7 +110,7 @@ export default function InChargeEmployeesPage() {
           </p>
         </div>
 
-        {/* Add Employee */}
+        {/* ================= FORM ================= */}
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-12">
           <h2 className="text-lg font-semibold text-slate-800 mb-6">
             ➕ Add Employee Details
@@ -108,7 +118,7 @@ export default function InChargeEmployeesPage() {
 
           <form
             onSubmit={handleSubmit}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6"
           >
             {[
               { label: "Employee Code", name: "emp_code" },
@@ -116,6 +126,7 @@ export default function InChargeEmployeesPage() {
               { label: "Designation", name: "designation" },
               { label: "Department", name: "department" },
               { label: "Functional Area", name: "functional_area" },
+              { label: "Direct Manager", name: "Direct_Manager_Name" }, // NEW
             ].map((field) => (
               <div key={field.name}>
                 <label className="block text-sm font-medium text-slate-600 mb-1">
@@ -125,6 +136,7 @@ export default function InChargeEmployeesPage() {
                 <input
                   name={field.name}
                   value={(formData as any)[field.name]}
+                  readOnly={field.name === "Direct_Manager_Name"} // manager readonly
                   onChange={async (e) => {
                     let value = e.target.value;
 
@@ -139,11 +151,12 @@ export default function InChargeEmployeesPage() {
 
                       if (value.length >= 3) {
                         const res = await fetch(
-                          `/api/incharge/get_employees?code=${value}`,
+                          `/api/incharge/get_employees?code=${value}`
                         );
 
                         if (res.ok) {
                           const emp = await res.json();
+                          console.log("FETCHED EMP:", emp);
 
                           setFormData({
                             emp_code: emp.emp_code || value,
@@ -151,10 +164,11 @@ export default function InChargeEmployeesPage() {
                             designation: emp.designation || "",
                             department: emp.department || "",
                             functional_area: emp.functional_area || "",
+                            Direct_Manager_Name:
+                              emp.Direct_Manager_Name || "", // NEW
                           });
                         }
                       }
-
                       return;
                     }
 
@@ -168,34 +182,33 @@ export default function InChargeEmployeesPage() {
                       [field.name]: value,
                     }));
                   }}
-                  className="w-full border rounded-lg px-3 py-2 text-sm
-                             focus:ring-2 focus:ring-indigo-500 focus:outline-none
-                             transition"
-                  required
+                  className={`w-full border rounded-lg px-3 py-2 text-sm
+                    focus:ring-2 focus:ring-indigo-500 focus:outline-none
+                    ${field.name === "Direct_Manager_Name" ? "bg-gray-100" : ""}
+                  `}
+                  required={field.name !== "Direct_Manager_Name"}
                 />
               </div>
             ))}
 
-            <div className="lg:col-span-5">
+            <div className="lg:col-span-6">
               <button
                 type="submit"
                 disabled={isSubmitting}
                 className={`mt-4 px-8 py-2 rounded-lg text-sm font-medium transition shadow
-      ${
-        isSubmitting
-          ? "bg-gray-400 cursor-not-allowed"
-          : "bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:opacity-90"
-      }`}
+                ${
+                  isSubmitting
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:opacity-90"
+                }`}
               >
                 {isSubmitting ? "Saving..." : "💾 Save Employee"}
               </button>
-
-              
             </div>
           </form>
         </div>
 
-        {/* Employee List */}
+        {/* ================= TABLE ================= */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h2 className="text-lg font-semibold mb-4">📋 Employee List</h2>
 
@@ -208,6 +221,7 @@ export default function InChargeEmployeesPage() {
                   <th className="p-3">Designation</th>
                   <th className="p-3">Department</th>
                   <th className="p-3">Functional Area</th>
+                  <th className="p-3">Direct Manager</th> {/* NEW */}
                   <th className="p-3">Actions</th>
                 </tr>
               </thead>
@@ -220,6 +234,7 @@ export default function InChargeEmployeesPage() {
                     <td className="p-3">{emp.designation}</td>
                     <td className="p-3">{emp.department}</td>
                     <td className="p-3">{emp.functional_area}</td>
+                    <td className="p-3">{emp.Direct_Manager_Name}</td>
                     <td className="p-3 space-x-2">
                       <button
                         onClick={() => {
@@ -238,7 +253,7 @@ export default function InChargeEmployeesPage() {
 
                           await fetch(
                             `/api/incharge/employees?emp_code=${emp.emp_code}`,
-                            { method: "DELETE" },
+                            { method: "DELETE" }
                           );
 
                           loadEmployees();
@@ -254,6 +269,7 @@ export default function InChargeEmployeesPage() {
             </table>
           </div>
         </div>
+
       </div>
     </div>
   );

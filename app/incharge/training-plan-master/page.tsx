@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 
 interface Plan {
   plan_master_id: number;
-  plan_name: string;
+  plan_Heading: string;
+  plan_Desc: string;
   created_at: string;
 }
 
 export default function TrainingPlanMasterPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [planName, setPlanName] = useState("");
+  const [planHeading, setPlanHeading] = useState("");
+  const [planDesc, setPlanDesc] = useState("");
 
   const loadData = async () => {
     const res = await fetch("/api/incharge/training-plan-master", {
@@ -29,10 +31,16 @@ export default function TrainingPlanMasterPage() {
     await fetch("/api/incharge/training-plan-master", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan_name: planName }),
+      body: JSON.stringify({
+        plan_Heading: planHeading,
+        plan_Desc: planDesc,
+      }),
     });
 
-    setPlanName("");
+    alert("Employee Plan master have been added successfully ✅");
+
+    setPlanHeading("");
+    setPlanDesc("");
     loadData();
   };
 
@@ -43,17 +51,24 @@ export default function TrainingPlanMasterPage() {
           📘 Training Plan Master
         </h1>
 
-        {/* Add Plan */}
+        {/* ================= ADD PLAN ================= */}
         <form
           onSubmit={submit}
           className="grid grid-cols-1 gap-4 mb-8"
         >
           <input
             required
+            placeholder="Plan Heading"
+            className="border rounded-lg px-4 py-2"
+            value={planHeading}
+            onChange={(e) => setPlanHeading(e.target.value)}
+          />
+
+          <input
             placeholder="Plan Description"
             className="border rounded-lg px-4 py-2"
-            value={planName}
-            onChange={(e) => setPlanName(e.target.value)}
+            value={planDesc}
+            onChange={(e) => setPlanDesc(e.target.value)}
           />
 
           <button className="bg-indigo-600 text-white py-2 rounded-lg">
@@ -61,18 +76,21 @@ export default function TrainingPlanMasterPage() {
           </button>
         </form>
 
-        {/* List */}
+        {/* ================= LIST ================= */}
         <table className="w-full text-sm">
           <thead className="bg-slate-100">
             <tr>
+              <th className="p-3 text-left">Plan Heading</th>
               <th className="p-3 text-left">Plan Description</th>
               <th className="p-3 text-left">Created</th>
             </tr>
           </thead>
+
           <tbody>
             {plans.map((p) => (
               <tr key={p.plan_master_id} className="border-b">
-                <td className="p-3">{p.plan_name}</td>
+                <td className="p-3">{p.plan_Heading}</td>
+                <td className="p-3">{p.plan_Desc}</td>
                 <td className="p-3">
                   {new Date(p.created_at).toLocaleDateString()}
                 </td>

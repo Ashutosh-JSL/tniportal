@@ -17,10 +17,7 @@ export async function GET() {
   try {
     const pool = await sql.connect(config);
 
-    const plans = await pool.request().query(`
-      SELECT plan_master_id, plan_name
-      FROM dbo.TrainingPlanMaster
-    `);
+    
 
     const skills = await pool.request().query(`
       SELECT skill_id, skill_name
@@ -40,44 +37,35 @@ export async function GET() {
 
     const records = await pool.request().query(`
   SELECT
-    MAX(TPS.id) AS id,
-    TPM.plan_name,
+  MAX(TPS.id) AS id,
+  E.emp_code,
+  E.emp_name,
+  STRING_AGG(S.skill_name, ', ') AS skill_name,
+  TPS.desired_level,
+  TPS.actual_level,
+  TPS.gap
+FROM dbo.TrainingPlanSkills TPS
 
-    E.emp_code,        -- DISPLAY
-    E.emp_name,        -- DISPLAY
+JOIN dbo.Skills S
+  ON TPS.skill_id = S.skill_id
 
-    STRING_AGG(S.skill_name, ', ') AS skill_name,
+LEFT JOIN dbo.Employees E
+  ON TPS.employee_id = E.emp_code
 
-    TPS.desired_level,
-    TPS.actual_level,
-    TPS.gap
+GROUP BY
+  E.emp_code,
+  E.emp_name,
+  TPS.desired_level,
+  TPS.actual_level,
+  TPS.gap
 
-  FROM dbo.TrainingPlanSkills TPS
-
-  JOIN dbo.TrainingPlanMaster TPM
-    ON TPS.plan_master_id = TPM.plan_master_id
-
-  JOIN dbo.Skills S
-    ON TPS.skill_id = S.skill_id
-
-  LEFT JOIN dbo.Employees E
-    ON TPS.employee_id = E.emp_code     -- ✅ FIXED
-
-  GROUP BY
-    TPM.plan_name,
-    E.emp_code,
-    E.emp_name,
-    TPS.desired_level,
-    TPS.actual_level,
-    TPS.gap
-
-  ORDER BY MAX(TPS.id) DESC;
+ORDER BY MAX(TPS.id) DESC;
 `);
 
 
     return NextResponse.json(
       {
-        plans: plans.recordset,
+        
         skills: skills.recordset,
         employees: employees.recordset,
         records: records.recordset,
@@ -87,7 +75,7 @@ export async function GET() {
   } catch (err) {
     console.error(err);
     return NextResponse.json(
-      { plans: [], skills: [], employees: [], records: [] },
+      {  skills: [], employees: [], records: [] },
       { status: 500 }
     );
   }
@@ -97,7 +85,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const {
-      plan_master_id,
+      
       skill_id,
       emp_code,
       desired_level,
@@ -107,7 +95,7 @@ export async function POST(req: Request) {
     const pool = await sql.connect(config);
 
     await pool.request()
-      .input("plan_master_id", sql.Int, plan_master_id)
+    
       .input("skill_id", sql.Int, skill_id)
       .input("emp_code", sql.VarChar(20), emp_code)
       .input("desired_level", sql.Int, desired_level)
@@ -115,7 +103,7 @@ export async function POST(req: Request) {
       .query(`
         INSERT INTO dbo.TrainingPlanSkills
         (
-          plan_master_id,
+          
           skill_id,
           employee_id,
           desired_level,
@@ -123,7 +111,7 @@ export async function POST(req: Request) {
         )
         VALUES
         (
-          @plan_master_id,
+          
           @skill_id,
           @emp_code,
           @desired_level,
@@ -135,5 +123,60 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Insert failed" }, { status: 500 });
+  }
+}
+
+
+
+
+/* ===================== PUT (UPDATE) ===================== */
+export async function PUT(req: Request) {
+  try {
+    const { emp_code, desired_level, actual_level } = await req.json();
+
+    const pool = await sql.connect(config);
+
+    await pool.request()
+      .input("emp_code", sql.VarChar(20), emp_code)
+      .input("desired_level", sql.Int, desired_level)
+      .input("actual_level", sql.Int, actual_level)
+      .query(`
+        UPDATE dbo.TrainingPlanSkills
+        SET
+          desired_level = @desired_level,
+          actual_level = @actual_level
+        WHERE employee_id = @emp_code
+      `);
+
+    return NextResponse.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  }
+}
+
+
+
+
+/* ===================== DELETE ===================== */
+export async function DELETE(req: Request) {
+  try {
+    const { id } = await req.json();
+
+    const pool = await sql.connect(config);
+
+    await pool.request()
+      .input("id", sql.Int, id)
+      .query(`
+        DELETE FROM dbo.TrainingPlanSkills
+        WHERE id = @id
+      `);
+
+    return NextResponse.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
 }

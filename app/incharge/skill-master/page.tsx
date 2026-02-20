@@ -30,6 +30,7 @@ export default function SkillMasterPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ skill_name }),
     });
+    alert("Employee skills have been added successfully ✅");
 
     setSkillName("");
     loadData();

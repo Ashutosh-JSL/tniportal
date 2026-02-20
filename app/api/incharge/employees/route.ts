@@ -34,7 +34,7 @@ export async function GET(req: Request) {
         .request()
         // .input("code", sql.VarChar(20), code)
         .query(`
-          Select emp_code,emp_name from employees
+          Select emp_code,emp_name from employees 
         `);
 
       if (result.recordset.length === 0) {
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
     // `);
 
     // return NextResponse.json(list.recordset); // ✅ ARRAY
+    
   } catch (error) {
     console.error("GET ERROR:", error);
     return NextResponse.json(

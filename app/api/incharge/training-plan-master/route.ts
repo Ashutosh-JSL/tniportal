@@ -20,7 +20,8 @@ export async function GET() {
     const result = await pool.request().query(`
       SELECT 
         plan_master_id,
-        plan_name,
+        plan_Heading,
+        plan_Desc,
         created_at
       FROM dbo.TrainingPlanMaster
       ORDER BY plan_master_id DESC
@@ -29,7 +30,8 @@ export async function GET() {
     return NextResponse.json(result.recordset, {
       headers: { "Cache-Control": "no-store" },
     });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return NextResponse.json([], { status: 500 });
   }
 }
@@ -37,11 +39,11 @@ export async function GET() {
 /* ================= POST ================= */
 export async function POST(req: Request) {
   try {
-    const { plan_name } = await req.json();
+    const { plan_Heading, plan_Desc } = await req.json();
 
-    if (!plan_name) {
+    if (!plan_Heading) {
       return NextResponse.json(
-        { error: "Plan Description required" },
+        { error: "Plan heading required" },
         { status: 400 }
       );
     }
@@ -49,14 +51,18 @@ export async function POST(req: Request) {
     const pool = await sql.connect(config);
 
     await pool.request()
-      .input("plan_name", sql.VarChar(255), plan_name)
+      .input("plan_Heading", sql.NVarChar(500), plan_Heading)
+      .input("plan_Desc", sql.VarChar(255), plan_Desc || null)
       .query(`
-        INSERT INTO dbo.TrainingPlanMaster (plan_name)
-        VALUES (@plan_name)
+        INSERT INTO dbo.TrainingPlanMaster
+        (plan_Heading, plan_Desc)
+        VALUES
+        (@plan_Heading, @plan_Desc)
       `);
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return NextResponse.json(
       { error: "Insert failed" },
       { status: 500 }

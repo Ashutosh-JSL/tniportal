@@ -21,13 +21,21 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message);
+        alert(data.message || "Login failed");
         return;
       }
 
-     // alert("Login Successful ✅");
-      router.push("/Home");
+      /* ================= STORE USER SESSION ================= */
+      localStorage.setItem("userRoles", JSON.stringify(data.user.roles));
+      localStorage.setItem("activeRole", data.user.activeRole);
+      localStorage.setItem("username", data.user.username);
+      localStorage.setItem("employeeCode", data.user.employeeCode);
+
+      /* ================= REDIRECT ================= */
+      router.replace("/Home");
+
     } catch (error) {
+      console.error(error);
       alert("Something went wrong");
     }
   };
@@ -52,10 +60,10 @@ export default function LoginPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="text-sm text-gray-200">Email</label>
+            <label className="text-sm text-gray-200">Email / Employee Code</label>
             <input
               type="text"
-              placeholder="Enter your email"
+              placeholder="Enter your email or employee code"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

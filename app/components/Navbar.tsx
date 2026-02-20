@@ -2,100 +2,195 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+type Role = string;
 
 export default function Navbar() {
-  const router = useRouter(); // ✅ Router initialized
+  const router = useRouter();
 
-  const menuItems = [
-    { name: "Dashboard", href: "/Home" },
-    { name: "Employees", href: "/incharge/employees" },
-    { name: "Skills Acquired", href: "/incharge/skills" },
-    { name: "Trainings", href: "/incharge/training-plan" },
-    
-  ];
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [activeRole, setActiveRole] = useState<Role | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [masterOpen, setMasterOpen] = useState(false);
 
+  /* ================= LOAD SESSION ================= */
+  useEffect(() => {
+    const storedRoles = localStorage.getItem("userRoles");
+    const storedActiveRole = localStorage.getItem("activeRole");
+    const storedUsername = localStorage.getItem("username");
+
+    if (storedRoles && storedActiveRole) {
+      setRoles(JSON.parse(storedRoles));
+      setActiveRole(storedActiveRole);
+      setUsername(storedUsername);
+    } else {
+      router.replace("/login");
+    }
+
+    setIsCheckingAuth(false);
+  }, [router]);
+
+  if (isCheckingAuth || !activeRole) return null;
+
+  /* ================= MENU PER ROLE ================= */
+  const menuItems: Record<string, { name: string; href: string }[]> = {
+    Admin: [
+      { name: "Dashboard", href: "/Home" },
+      { name: "Skills Acquired", href: "/incharge/skills" },
+      { name: "Training Plan", href: "/incharge/training-plan" },
+      { name: "Post-training", href: "/incharge/Post-Training" },
+    ],
+
+    Incharge: [
+      { name: "Dashboard", href: "/Home" },
+      { name: "Employees", href: "/incharge/employees" },
+      { name: "Skills Acquired", href: "/incharge/skills" },
+      { name: "Training Plan", href: "/incharge/training-plan" },
+      { name: "Post-training", href: "/incharge/Post-Training" },
+    ],
+  };
+
+  const currentMenu = menuItems[activeRole] || [];
+
+  /* ================= ROLE SWITCH ================= */
+  const handleRoleChange = (role: string) => {
+    setActiveRole(role);
+    localStorage.setItem("activeRole", role);
+  };
+
+  /* ================= LOGOUT ================= */
+  const handleLogout = () => {
+    localStorage.clear();
+    router.replace("/login");
+  };
+
+  /* ================= UI ================= */
   return (
     <nav className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-lg">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex h-16 items-center justify-between">
 
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold">
-              TN
-            </div>
-            <div>
-              <h1 className="text-white font-semibold leading-tight">
-                Training Need Identification Portal
-              </h1>
-              <p className="text-xs text-white/70">
-                In-Charge Dashboard
-              </p>
-            </div>
-          </div>
+  <div className="max-w-7xl mx-auto px-6">
 
-          {/* Menu */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-white">
-            {menuItems.map(item => (
-              <Link key={item.name} href={item.href} className="relative group">
-                {item.name}
-                <span className="absolute left-0 -bottom-1 h-0.5 bg-white w-0 group-hover:w-full transition-all"></span>
-              </Link>
-            ))}
 
-            {/* Master Dropdown */}
-            <div className="relative group">
-              <button className="flex items-center gap-1 cursor-pointer">
-                Master <span className="text-xs">▾</span>
-              </button>
 
-              <div
-                className="
-                  absolute top-8 left-0 w-52
-                  bg-white rounded-xl shadow-xl
-                  opacity-0 invisible
-                  group-hover:opacity-100 group-hover:visible
-                  transition-all duration-200
-                  text-sm text-slate-700
-                "
-              >
-                <Link
-                  href="/incharge/skill-master"
-                  className="block px-4 py-3 hover:bg-indigo-50 hover:text-indigo-600 transition"
-                >
-                  ➕ Add Skills
-                </Link>
 
-                <Link
-                  href="/incharge/training-plan-master"
-                  className="block px-4 py-3 hover:bg-indigo-50 hover:text-indigo-600 transition"
-                >
-                  ➕ Add Training Plan
-                </Link>
-              </div>
-            </div>
-          </div>
+    {/* ================= BOTTOM ROW ================= */}
+    <div className="flex items-center justify-between py-3 border-t border-white/20 text-white">
 
-          {/* Right */}
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
-              <div className="h-7 w-7 rounded-full bg-white text-blue-600 flex items-center justify-center text-xs font-bold">
-                U
-              </div>
-              <span className="text-sm text-white">User</span>
-            </div>
+      {/* LEFT — LOGO + TITLE */}
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-lg bg-white/20 flex items-center justify-center font-bold">
+          TN
+        </div>
 
-            {/* Logout Button */}
-            <button
-              onClick={() => router.replace("/login")}
-              className="bg-white text-blue-600 px-3 py-1 rounded-md text-sm hover:bg-gray-100 transition"
-            >
-              Logout
-            </button>
-          </div>
-
+        <div>
+          <h1 className="font-semibold">
+            Training Need Identification Portal
+          </h1>
+          <p className="text-xs text-white/70">
+            {activeRole} Dashboard
+          </p>
         </div>
       </div>
-    </nav>
+
+      {/* RIGHT — USER + LOGOUT */}
+      <div className="flex items-center gap-3 bg-white/10 px-3 py-1.5 rounded-full">
+
+        <div className="h-7 w-7 rounded-full bg-white text-blue-600 flex items-center justify-center text-xs font-bold">
+          {username?.charAt(0).toUpperCase()}
+        </div>
+
+        <span className="text-sm">{username}</span>
+
+        <button
+          onClick={handleLogout}
+          className="bg-white text-blue-600 px-3 py-1 rounded-md text-sm hover:bg-gray-100"
+        >
+          Logout
+        </button>
+
+      </div>
+
+    </div>
+
+    {/* ================= TOP ROW ================= */}
+    <div className="flex h-14 items-center justify-between text-white text-sm font-medium">
+
+      {/* MENU */}
+      <div className="flex items-center gap-8">
+
+        {currentMenu.map(item => (
+          <Link key={item.name} href={item.href}>
+            {item.name}
+          </Link>
+        ))}
+
+        {/* MASTER DROPDOWN */}
+        <div className="relative">
+          <button
+            onClick={() => setMasterOpen(!masterOpen)}
+            className="flex items-center gap-1"
+          >
+            Master ▾
+          </button>
+
+          {masterOpen && (
+            <div className="absolute top-8 left-0 w-56 bg-white rounded-xl shadow-xl z-50 text-sm text-slate-700">
+
+              {activeRole === "Incharge" && (
+                <>
+                  <Link href="/incharge/skill-master" className="block px-4 py-3 hover:bg-indigo-50">
+                    Add Skills
+                  </Link>
+                  <Link href="/incharge/training-plan-master" className="block px-4 py-3 hover:bg-indigo-50">
+                    Add Training Plan
+                  </Link>
+                </>
+              )}
+
+              {activeRole === "Admin" && (
+                <Link href="/incharge/role-auth" className="block px-4 py-3 hover:bg-indigo-50">
+                  Role Authorization
+                </Link>
+              )}
+
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* ROLE SELECTOR */}
+      <select
+  value={activeRole}
+  onChange={(e) => handleRoleChange(e.target.value)}
+  className="
+    bg-white/20 backdrop-blur-md
+    text-white
+    px-4 py-2
+    rounded-full
+    text-sm font-medium
+    border border-white/30
+    shadow-lg
+    outline-none
+    hover:bg-white/30
+    transition
+  "
+>
+  {roles.map(role => (
+    <option key={role} value={role} className="text-black">
+      {role}
+    </option>
+  ))}
+</select>
+
+    </div>
+
+    
+
+  </div>
+
+</nav>
   );
 }
