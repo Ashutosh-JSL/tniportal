@@ -1,33 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import sql from "mssql";
+import { getConnection } from "@/lib/dbConnect";
+
+const pool = await getConnection();
 
 export async function GET(req: NextRequest) {
-  try{
+  try {
 
-  const { searchParams } = new URL(req.url);
-  const empId = searchParams.get("empId");
-  console.log(empId);
+    const { searchParams } = new URL(req.url);
+    const empId = searchParams.get("empId");
 
-  const result = await sql.query(`
-    SELECT TOP 1
-      plan_desc,
-      year,
-      responsible_person,
-      target_date,
-      training_location
-    FROM TrainingPlan
-    WHERE employee_id = ${empId}
-    ORDER BY plan_id DESC
-  `);
+    if (!empId) {
+      return NextResponse.json([]);
+    }
 
-  return NextResponse.json(result.recordset[0] || null);
-  }
-  catch (err: any) {
+    const result = await pool.query`
+      SELECT
+        plan_id,
+        plan_desc,
+        year,
+        responsible_person,
+        target_date,
+        
+        training_location
+      FROM TrainingPlan
+      WHERE employee_id = ${empId}
+      ORDER BY plan_id DESC
+    `;
 
-    return NextResponse.json({
-      error: err.message
-    }, { status: 500 });
+    // ✅ return ALL assigned trainings
+    return NextResponse.json(result.recordset || []);
 
+  } catch (err: any) {
+    console.error(err);
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    );
   }
 }
-

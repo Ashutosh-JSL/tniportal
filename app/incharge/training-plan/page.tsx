@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 interface Employee {
   emp_code: string;
   emp_name: string;
-
 }
 
 interface Plan {
@@ -16,13 +15,18 @@ interface Plan {
   responsible_person: string;
   target_date: string;
   training_location: string;
-  
+}
+
+interface PlanMaster {
+  plan_master_id: number;
+  plan_Heading: string;
 }
 
 export default function TrainingPlanPage() {
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [planHeadings, setPlanHeadings] = useState<PlanMaster[]>([]);
 
   const [formData, setFormData] = useState({
     plan_desc: "",
@@ -31,19 +35,14 @@ export default function TrainingPlanPage() {
     responsible_person: "",
     target_date: "",
     training_location: "",
-    
   });
 
-  /* =====================
-     DEBUG FORM STATE
-  ===================== */
+  /* ================= DEBUG ================= */
   useEffect(() => {
     console.log("FORM STATE:", formData);
   }, [formData]);
 
-  /* =====================
-     LOAD GRID DATA
-  ===================== */
+  /* ================= LOAD GRID ================= */
   const loadPlans = async () => {
     const res = await fetch("/api/incharge/training-plan", {
       cache: "no-store",
@@ -52,63 +51,68 @@ export default function TrainingPlanPage() {
     setPlans(data);
   };
 
+  /* ================= PAGE LOAD ================= */
   useEffect(() => {
     fetch("/api/incharge/employees")
       .then(res => res.json())
       .then(setEmployees);
 
+    fetch("/api/incharge/training-plan-master")
+      .then(res => res.json())
+      .then(setPlanHeadings);
+
     loadPlans();
   }, []);
 
-  /* =====================
-     SUBMIT FORM
-  ===================== */
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+  /* ================= SUBMIT ================= */
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  if (!formData.Id) {
-    alert("Please select employee");
-    return;
-  }
+    if (!formData.Id) {
+      alert("Please select employee");
+      return;
+    }
 
-  const payload = {
-    plan_desc: formData.plan_desc,
-    employee_id: formData.Id,
-    year: formData.year,
-    responsible_person: formData.responsible_person,
-    target_date: formData.target_date,
-    training_location: formData.training_location,
+    try {
+      const payload = {
+        plan_desc: formData.plan_desc,
+        employee_id: formData.Id,
+        year: formData.year,
+        responsible_person: formData.responsible_person,
+        target_date: formData.target_date,
+        training_location: formData.training_location,
+      };
+
+      console.log("SENDING PAYLOAD:", payload);
+
+      const res = await fetch("/api/incharge/training-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+
+      alert("Training plan submitted successfully!");
+
+      await loadPlans();
+
+      setFormData({
+        plan_desc: "",
+        Id: "",
+        year: "",
+        responsible_person: "",
+        target_date: "",
+        training_location: "",
+      });
+
+    } catch (error) {
+      console.error(error);
+      alert("Something went wrong while saving");
+    }
   };
 
-  console.log("SENDING PAYLOAD:", payload);
-
-  const res = await fetch("/api/incharge/training-plan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await res.json();
-
-  if (data.success) {
-    alert("Training plan submitted successfully ✅"); // ⭐ POPUP
-
-    setFormData({
-      Id: "",
-      plan_desc: "",
-      year: "",
-      responsible_person: "",
-      target_date: "",
-      training_location: "",
-    });
-
-    loadPlans();
-  }
-};
-
-  /* =====================
-     DELETE
-  ===================== */
+  /* ================= DELETE ================= */
   const handleDelete = async (plan_id: number) => {
     if (!confirm("Are you sure you want to delete this record?")) return;
 
@@ -130,57 +134,55 @@ export default function TrainingPlanPage() {
           <h2 className="text-xl font-semibold mb-6">
             📘 Training Plan Entry
           </h2>
-      {/* <p onClick={()=>console.log(employees)}>Show</p>
-      <p onClick={()=>console.log(employees)}>Show Form</p> */}
+
           <form
             onSubmit={handleSubmit}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
 
-            {/* Plan Description */}
+            {/* ================= PLAN DESCRIPTION DROPDOWN ================= */}
             <div className="lg:col-span-3">
               <label className="text-sm font-medium">
                 Training Plan Description
               </label>
 
-              <input
+              <select
                 className="w-full border rounded px-4 py-2 mt-1"
-                placeholder="Describe the training requirement"
                 value={formData.plan_desc}
                 onChange={e =>
                   setFormData({ ...formData, plan_desc: e.target.value })
                 }
                 required
-              />
+              >
+                <option value="">Select Training Plan</option>
+
+                {planHeadings.map(plan => (
+                  <option
+                    key={plan.plan_master_id}
+                    value={plan.plan_Heading}
+                  >
+                    {plan.plan_Heading}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* ================= EMPLOYEE DROPDOWN FIXED ================= */}
+            {/* ================= EMPLOYEE ================= */}
             <div>
               <label className="text-sm font-medium">Employee</label>
 
               <select
                 className="w-full border rounded px-4 py-2 mt-1"
-
-                value={formData.Id || ""}
-
-                onChange={e => {
-                  console.log("Selected Employee Id:", e.target.value);
-
-                  setFormData({
-                    ...formData,
-                    Id: e.target.value,
-                  });
-                }}
-
+                value={formData.Id}
+                onChange={e =>
+                  setFormData({ ...formData, Id: e.target.value })
+                }
                 required
               >
                 <option value="">Select Employee</option>
 
                 {employees.map(emp => (
-                  <option
-                    key={emp.emp_code}
-                    value={emp.emp_code}      // ✅ IMPORTANT FIX
-                  >
+                  <option key={emp.emp_code} value={emp.emp_code}>
                     {emp.emp_name}
                   </option>
                 ))}
@@ -190,7 +192,6 @@ export default function TrainingPlanPage() {
             {/* Year */}
             <div>
               <label className="text-sm font-medium">Year</label>
-
               <input
                 className="w-full border rounded px-4 py-2 mt-1"
                 placeholder="2026"
@@ -201,15 +202,13 @@ export default function TrainingPlanPage() {
               />
             </div>
 
-            {/* Responsible Person */}
+            {/* Responsible */}
             <div>
               <label className="text-sm font-medium">
                 Responsible Person
               </label>
-
               <input
                 className="w-full border rounded px-4 py-2 mt-1"
-                placeholder="Person responsible for training"
                 value={formData.responsible_person}
                 onChange={e =>
                   setFormData({
@@ -225,7 +224,6 @@ export default function TrainingPlanPage() {
               <label className="text-sm font-medium">
                 Target Completion Date
               </label>
-
               <input
                 type="date"
                 className="w-full border rounded px-4 py-2 mt-1"
@@ -239,7 +237,7 @@ export default function TrainingPlanPage() {
               />
             </div>
 
-            {/* Training Location */}
+            {/* Location */}
             <div>
               <label className="text-sm font-medium">
                 Training Location
@@ -263,8 +261,6 @@ export default function TrainingPlanPage() {
               </select>
             </div>
 
-           
-
             <div className="lg:col-span-3">
               <button className="bg-indigo-600 text-white px-8 py-2 rounded">
                 ➕ Save Training Plan
@@ -283,12 +279,11 @@ export default function TrainingPlanPage() {
           <table className="w-full text-sm border">
             <thead className="bg-slate-100 text-center">
               <tr>
-                <th className="p-3 ">Plan</th>
+                <th className="p-3">Plan</th>
                 <th className="p-3">Employee</th>
                 <th className="p-3">Responsible</th>
                 <th className="p-3">Target Date</th>
                 <th className="p-3">Location</th>
-                
                 <th className="p-3">Year</th>
                 <th className="p-3">Action</th>
               </tr>
@@ -300,11 +295,9 @@ export default function TrainingPlanPage() {
                   <td className="p-3">{p.plan_desc}</td>
                   <td className="p-3">{p.emp_name}</td>
                   <td className="p-3">{p.responsible_person}</td>
-                  <td className="p-3">{p.target_date.split("T")[0]}</td>
+                  <td className="p-3">{p.target_date?.split("T")[0]}</td>
                   <td className="p-3">{p.training_location}</td>
-                  
-                  <td className="p-3"> {p.year}</td>
-                 
+                  <td className="p-3">{p.year}</td>
                   <td className="p-3">
                     <button
                       onClick={() => handleDelete(p.plan_id)}
