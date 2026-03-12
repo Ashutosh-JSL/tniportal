@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       .request()
       .input("login", sql.VarChar, email)
       .query(`
-        SELECT 
+        SELECT
           e.Employee_Code,
           e.Employee_Name,
           e.Emp_Pwd,
@@ -31,11 +31,12 @@ export async function POST(req: Request) {
           r.Role_Desc
         FROM [Employee_DB].[dbo].[Employee_Master] e
         LEFT JOIN dbo.Role_Auth er
-          ON er.UserID = e.Employee_Code
+          ON er.UserID = e.Employee_Code COLLATE DATABASE_DEFAULT
         LEFT JOIN dbo.Role_Master r
           ON r.Role_ID = er.Role_ID
-        WHERE (e.Employee_Code = @login OR e.E_MAIL = @login)
+        WHERE (e.Employee_Code COLLATE DATABASE_DEFAULT = @login OR e.E_MAIL COLLATE DATABASE_DEFAULT = @login)
         AND e.Status = 1
+ 
       `);
 
     if (result.recordset.length === 0) {

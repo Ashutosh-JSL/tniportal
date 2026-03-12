@@ -3,8 +3,8 @@ import sql from "mssql";
 
 const config = {
   user: "sa",
-  password: "Ashusolid@1234",
-  server: "JSLLAP0727",
+  password: "Jindal@pex2020",
+  server: "10.7.81.3",
   database: "TNIP_NEW",
   options: {
     trustServerCertificate: true,

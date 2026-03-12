@@ -4,8 +4,8 @@ import sql from "mssql";
 /* ===================== DB CONFIG ===================== */
 const config = {
   user: "sa",
-  password: "Ashusolid@1234",
-  server: "JSLLAP0727",
+  password: "Jindal@pex2020",
+  server: "10.7.81.3",
   database: "TNIP_NEW", // app DB (cross-db read allowed)
   options: {
     trustServerCertificate: true,
