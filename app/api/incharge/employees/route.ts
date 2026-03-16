@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import sql from "mssql";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
 
 /* ===================== DB CONFIG ===================== */
+
 const config = {
   user: "sa",
   password: "Jindal@pex2020",
@@ -13,16 +16,35 @@ const config = {
   },
 };
 
+async function requireUser() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return null;
+  }
+
+  return session.user;
+}
+
 /* ===================== GET ===================== */
 /*
-  1️⃣ GET /api/incharge/employees
+GET /api/incharge/employees
       → List employees from TNIP_NEW.dbo.Employees (ARRAY)
 
-  2️⃣ GET /api/incharge/employees?code=123
+GET /api/incharge/employees?code=123
       → Fetch single employee from Employee_DB.dbo.Employee_Master (OBJECT)
 */
-export async function GET(req: Request) {
+export async function GET() {
   try {
+    const currentUser = await requireUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // const { searchParams } = new URL(req.url);
     // const code = searchParams.get("code");
 
@@ -75,6 +97,15 @@ export async function GET(req: Request) {
 /* Save employee to TNIP_NEW.dbo.Employees */
 export async function POST(req: Request) {
   try {
+    const currentUser = await requireUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const {
       emp_code,
@@ -119,6 +150,15 @@ export async function POST(req: Request) {
 /* Update local employee */
 export async function PUT(req: Request) {
   try {
+    const currentUser = await requireUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const {
       emp_code,
@@ -161,6 +201,15 @@ export async function PUT(req: Request) {
 /* Soft delete */
 export async function DELETE(req: Request) {
   try {
+    const currentUser = await requireUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const emp_code = searchParams.get("emp_code");
 

@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-/* ===================== INTERFACES ===================== */
-
 interface Skill {
   skill_id: number;
   skill_name: string;
@@ -14,7 +12,7 @@ interface Employee {
   emp_name: string;
 }
 
-interface Record {
+interface RecordItem {
   id: number;
   skill_name: string;
   emp_code: string;
@@ -24,12 +22,21 @@ interface Record {
   gap: number;
 }
 
-/* ===================== COMPONENT ===================== */
+interface AuthorizationItem {
+  source_mapping_id: number | null;
+  status: string;
+}
+
 export default function TrainingPlanSkillPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [records, setRecords] = useState<Record[]>([]);
+  const [records, setRecords] = useState<RecordItem[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<Skill[]>([]);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([]);
+  const [submittedRecordIds, setSubmittedRecordIds] = useState<number[]>([]);
+  const [activeRole] = useState(() =>
+    typeof window === "undefined" ? "" : localStorage.getItem("activeRole") ?? "",
+  );
 
   const [form, setForm] = useState({
     employee_id: "",
@@ -37,35 +44,55 @@ export default function TrainingPlanSkillPage() {
     actual_level: "",
   });
 
-  /* ===================== LOAD DATA ===================== */
-  const loadAll = async () => {
-    const res = await fetch("/api/incharge/training-plan-skill-mapping", {
-      cache: "no-store",
-    });
-
-    const data = await res.json();
-
-    setSkills(data.skills ?? []);
-    setEmployees(data.employees ?? []);
-    setRecords(data.records ?? []);
-  };
-
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  /* ===================== EDIT STATE ===================== */
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({
     desired_level: "",
     actual_level: "",
   });
 
-  const startEdit = (r: Record) => {
-    setEditingId(r.id);
+  const loadAll = async () => {
+    const [mappingRes, authorizationRes] = await Promise.all([
+      fetch("/api/incharge/training-plan-skill-mapping", {
+        cache: "no-store",
+      }),
+      fetch("/api/incharge/skills-authorization", {
+        cache: "no-store",
+      }),
+    ]);
+
+    const mappingData = await mappingRes.json();
+    const authorizationData = await authorizationRes.json();
+
+    setSkills(mappingData.skills ?? []);
+    setEmployees(mappingData.employees ?? []);
+    setRecords(mappingData.records ?? []);
+
+    const pendingIds = Array.isArray(authorizationData)
+      ? authorizationData
+          .filter(
+            (item: AuthorizationItem) =>
+              item.status === "Pending" &&
+              Number.isFinite(Number(item.source_mapping_id)),
+          )
+          .map((item: AuthorizationItem) => Number(item.source_mapping_id))
+      : [];
+
+    setSubmittedRecordIds(pendingIds);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadAll();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const startEdit = (record: RecordItem) => {
+    setEditingId(record.id);
     setEditForm({
-      desired_level: String(r.desired_level),
-      actual_level: String(r.actual_level),
+      desired_level: String(record.desired_level),
+      actual_level: String(record.actual_level),
     });
   };
 
@@ -73,13 +100,12 @@ export default function TrainingPlanSkillPage() {
     setEditingId(null);
   };
 
-  /* ===================== UPDATE ===================== */
-  const saveEdit = async (emp_code: string) => {
+  const saveEdit = async (id: number) => {
     await fetch("/api/incharge/training-plan-skill-mapping", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        emp_code: emp_code,
+        id,
         desired_level: Number(editForm.desired_level),
         actual_level: Number(editForm.actual_level),
       }),
@@ -89,21 +115,19 @@ export default function TrainingPlanSkillPage() {
     loadAll();
   };
 
-  /* ===================== DELETE ===================== */
-  const deleteRecord = async (emp_code: string) => {
-    const ok = confirm("Delete all skills for this employee?");
+  const deleteRecord = async (id: number) => {
+    const ok = confirm("Delete this skill mapping?");
     if (!ok) return;
 
     await fetch("/api/incharge/training-plan-skill-mapping", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emp_code }),
+      body: JSON.stringify({ id }),
     });
 
     loadAll();
   };
 
-  /* ===================== SUBMIT ===================== */
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -125,8 +149,7 @@ export default function TrainingPlanSkillPage() {
       });
     }
 
-    // ✅ SUCCESS POPUP
-    alert("Employee skills have been added successfully ✅");
+    alert("Employee skills have been added successfully");
 
     setSelectedSkills([]);
     setForm({
@@ -138,23 +161,56 @@ export default function TrainingPlanSkillPage() {
     loadAll();
   };
 
-  /* ===================== RENDER ===================== */
+  const toggleRecordSelection = (id: number) => {
+    setSelectedRecordIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((recordId) => recordId !== id)
+        : [...prev, id],
+    );
+  };
+
+  const submitSelectedToAdmin = async () => {
+    const selectedRecords = records.filter((record) =>
+      selectedRecordIds.includes(record.id),
+    );
+
+    if (selectedRecords.length === 0) {
+      alert("Please select at least one grid row");
+      return;
+    }
+
+    const res = await fetch("/api/incharge/skills-authorization", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: selectedRecords }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "Failed to send rows for admin authorization");
+      return;
+    }
+
+    alert("Selected rows sent to admin authorization successfully");
+    setSelectedRecordIds([]);
+    loadAll();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 py-10">
-      <div className="max-w-7xl mx-auto px-6">
-        {/* ===================== FORM ===================== */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-12">
-          <h1 className="text-2xl font-semibold text-slate-800 mb-6">
-            🔗 Training Plan – Skill Mapping
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-12 rounded-2xl bg-white p-8 shadow-lg">
+          <h1 className="mb-6 text-2xl font-semibold text-slate-800">
+            Training Plan - Skill Mapping
           </h1>
 
           <form
             onSubmit={submit}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
           >
             <select
               required
-              className="border rounded-lg px-4 py-2"
+              className="rounded-lg border px-4 py-2"
               value={form.employee_id}
               onChange={(e) =>
                 setForm({ ...form, employee_id: e.target.value })
@@ -169,60 +225,63 @@ export default function TrainingPlanSkillPage() {
             </select>
 
             <select
-              className="border rounded-lg px-4 py-2"
+              className="rounded-lg border px-4 py-2"
               value=""
               onChange={(e) => {
                 const id = Number(e.target.value);
                 if (!id) return;
 
-                const skill = skills.find((s) => s.skill_id === id);
+                const skill = skills.find((item) => item.skill_id === id);
                 if (
                   skill &&
-                  !selectedSkills.some((s) => s.skill_id === skill.skill_id)
+                  !selectedSkills.some(
+                    (selected) => selected.skill_id === skill.skill_id,
+                  )
                 ) {
                   setSelectedSkills([...selectedSkills, skill]);
                 }
               }}
             >
               <option value="">Select Skill</option>
-              {skills.map((s) => (
-                <option key={s.skill_id} value={s.skill_id}>
-                  {s.skill_name}
+              {skills.map((skill) => (
+                <option key={skill.skill_id} value={skill.skill_id}>
+                  {skill.skill_name}
                 </option>
               ))}
             </select>
 
-            {/* SELECTED SKILLS DISPLAY */}
-            {selectedSkills.length > 0 && (
-              <div className="lg:col-span-3 bg-slate-50 border rounded-lg px-4 py-3">
-                <span className="font-semibold text-sm">Skills Selected:</span>
+            {selectedSkills.length > 0 ? (
+              <div className="rounded-lg border bg-slate-50 px-4 py-3 lg:col-span-3">
+                <span className="text-sm font-semibold">Skills Selected:</span>
 
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   {selectedSkills.map((skill) => (
                     <span
                       key={skill.skill_id}
-                      className="flex items-center gap-2 bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm"
+                      className="flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-700"
                     >
                       {skill.skill_name}
                       <button
                         type="button"
                         onClick={() =>
                           setSelectedSkills((prev) =>
-                            prev.filter((s) => s.skill_id !== skill.skill_id),
+                            prev.filter(
+                              (item) => item.skill_id !== skill.skill_id,
+                            ),
                           )
                         }
-                        className="text-red-600 font-bold"
+                        className="font-bold text-red-600"
                       >
-                        ×
+                        x
                       </button>
                     </span>
                   ))}
                 </div>
               </div>
-            )}
+            ) : null}
 
             <input
-              className="border rounded-lg px-4 py-2"
+              className="rounded-lg border px-4 py-2"
               placeholder="Desired Level"
               value={form.desired_level}
               onChange={(e) =>
@@ -231,7 +290,7 @@ export default function TrainingPlanSkillPage() {
             />
 
             <input
-              className="border rounded-lg px-4 py-2"
+              className="rounded-lg border px-4 py-2"
               placeholder="Actual Level"
               value={form.actual_level}
               onChange={(e) =>
@@ -240,22 +299,36 @@ export default function TrainingPlanSkillPage() {
             />
 
             <div className="lg:col-span-3">
-              <button className="bg-indigo-600 text-white px-8 py-2 rounded-lg">
-                ➕ Add Skill Mapping
+              <button className="rounded-lg bg-indigo-600 px-8 py-2 text-white">
+                Add Skill Mapping
               </button>
             </div>
           </form>
         </div>
 
-        {/* ===================== GRID ===================== */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4">
-            📋 Skill Mapping List
-          </h2>
+        <div className="rounded-2xl bg-white p-6 shadow-lg">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h2 className="text-xl font-semibold text-slate-800">
+              Skill Mapping List
+            </h2>
 
-          <table className="w-full text-sm border-collapse">
+            {activeRole === "Incharge" ? (
+              <button
+                type="button"
+                onClick={submitSelectedToAdmin}
+                className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white"
+              >
+                Send Checked Rows To Admin Authorization
+              </button>
+            ) : null}
+          </div>
+
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="bg-slate-100 text-left">
+                {activeRole === "Incharge" ? (
+                  <th className="p-4 text-center">Select</th>
+                ) : null}
                 <th className="p-4">Employee</th>
                 <th className="p-4">Skill</th>
                 <th className="p-4">Desired</th>
@@ -266,113 +339,122 @@ export default function TrainingPlanSkillPage() {
             </thead>
 
             <tbody>
-              {records.map((r) => (
-                <tr key={r.id} className="border-b hover:bg-indigo-50/40">
-                  <td className="p-4">{r.emp_name}</td>
-                  <td className="p-4">{r.skill_name}</td>
+              {records.map((record) => {
+                const desired = Number(record.desired_level);
+                const actual = Number(record.actual_level);
+                const rawGap = desired - actual;
+                const gap = Math.max(rawGap, 0);
+                const gapClass =
+                  rawGap > 0
+                    ? "bg-red-100 text-red-700"
+                    : rawGap === 0
+                      ? "bg-green-100 text-green-700"
+                      : "bg-yellow-100 text-yellow-800";
 
-                  <td className="p-4">
-                    {editingId === r.id ? (
-                      <input
-                        className="border px-2 py-1 rounded w-20"
-                        value={editForm.desired_level}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            desired_level: e.target.value,
-                          })
-                        }
-                      />
-                    ) : (
-                      r.desired_level
-                    )}
-                  </td>
+                return (
+                  <tr key={record.id} className="border-b hover:bg-indigo-50/40">
+                    {activeRole === "Incharge" ? (
+                      <td className="p-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedRecordIds.includes(record.id)}
+                          disabled={submittedRecordIds.includes(record.id)}
+                          onChange={() => toggleRecordSelection(record.id)}
+                          className="h-4 w-4"
+                        />
+                        {submittedRecordIds.includes(record.id) ? (
+                          <div className="mt-1 text-[11px] font-medium text-amber-600">
+                            Pending
+                          </div>
+                        ) : null}
+                      </td>
+                    ) : null}
 
-                  <td className="p-4">
-                    {editingId === r.id ? (
-                      <input
-                        className="border px-2 py-1 rounded w-20"
-                        value={editForm.actual_level}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            actual_level: e.target.value,
-                          })
-                        }
-                      />
-                    ) : (
-                      r.actual_level
-                    )}
-                  </td>
+                    <td className="p-4">{record.emp_name}</td>
+                    <td className="p-4">{record.skill_name}</td>
 
-                  {/* ================= GAP COLUMN ================= */}
-                  <td className="p-4">
-                    {(() => {
-                      const desired = Number(r.desired_level);
-                      const actual = Number(r.actual_level);
+                    <td className="p-4">
+                      {editingId === record.id ? (
+                        <input
+                          className="w-20 rounded border px-2 py-1"
+                          value={editForm.desired_level}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              desired_level: e.target.value,
+                            })
+                          }
+                        />
+                      ) : (
+                        record.desired_level
+                      )}
+                    </td>
 
-                      const raw = desired - actual;
-                      const gap = Math.max(raw, 0); // never negative
+                    <td className="p-4">
+                      {editingId === record.id ? (
+                        <input
+                          className="w-20 rounded border px-2 py-1"
+                          value={editForm.actual_level}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              actual_level: e.target.value,
+                            })
+                          }
+                        />
+                      ) : (
+                        record.actual_level
+                      )}
+                    </td>
 
-                      let colorClass = "";
+                    <td className="p-4">
+                      <span
+                        className={`${gapClass} rounded-full px-3 py-1 text-xs font-semibold`}
+                      >
+                        {gap}
+                      </span>
+                    </td>
 
-                      if (raw > 0) {
-                        colorClass = "bg-red-100 text-red-700"; // needs training
-                      } else if (raw === 0) {
-                        colorClass = "bg-green-100 text-green-700"; // perfect
-                      } else {
-                        colorClass = "bg-yellow-100 text-yellow-800"; // over skilled
-                      }
-
-                      return (
-                        <span
-                          className={`${colorClass} px-3 py-1 rounded-full text-xs font-semibold`}
-                        >
-                          {gap}
-                        </span>
-                      );
-                    })()}
-                  </td>
-
-                  <td className="p-4 text-center space-x-2">
-                    {editingId === r.id ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => saveEdit(r.emp_code)}
-                          className="bg-green-600 text-white px-3 py-1 rounded"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelEdit}
-                          className="bg-gray-500 text-white px-3 py-1 rounded"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => startEdit(r)}
-                          className="bg-blue-600 text-white px-3 py-1 rounded"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteRecord(r.emp_code)}
-                          className="bg-red-600 text-white px-3 py-1 rounded"
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    <td className="p-4 text-center space-x-2">
+                      {editingId === record.id ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => saveEdit(record.id)}
+                            className="rounded bg-green-600 px-3 py-1 text-white"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEdit}
+                            className="rounded bg-gray-500 px-3 py-1 text-white"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(record)}
+                            className="rounded bg-blue-600 px-3 py-1 text-white"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteRecord(record.id)}
+                            className="rounded bg-red-600 px-3 py-1 text-white"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

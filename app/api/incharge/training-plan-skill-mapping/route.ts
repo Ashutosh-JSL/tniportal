@@ -17,8 +17,6 @@ export async function GET() {
   try {
     const pool = await sql.connect(config);
 
-    
-
     const skills = await pool.request().query(`
       SELECT skill_id, skill_name
       FROM dbo.Skills
@@ -36,31 +34,27 @@ export async function GET() {
 
 
     const records = await pool.request().query(`
-  SELECT
-  MAX(TPS.id) AS id,
-  E.emp_code,
-  E.emp_name,
-  STRING_AGG(S.skill_name, ', ') AS skill_name,
-  TPS.desired_level,
-  TPS.actual_level,
-  TPS.gap
-FROM dbo.TrainingPlanSkills TPS
-
-JOIN dbo.Skills S
-  ON TPS.skill_id = S.skill_id
-
-LEFT JOIN dbo.Employees E
-  ON TPS.employee_id = E.emp_code
-
-GROUP BY
-  E.emp_code,
-  E.emp_name,
-  TPS.desired_level,
-  TPS.actual_level,
-  TPS.gap
-
-ORDER BY MAX(TPS.id) DESC;
-`);
+      SELECT
+        MAX(TPS.id) AS id,
+        E.emp_code,
+        E.emp_name,
+        STRING_AGG(S.skill_name, ', ') AS skill_name,
+        TPS.desired_level,
+        TPS.actual_level,
+        TPS.gap
+      FROM dbo.TrainingPlanSkills TPS
+      JOIN dbo.Skills S
+        ON TPS.skill_id = S.skill_id
+      LEFT JOIN dbo.Employees E
+        ON TPS.employee_id = E.emp_code
+      GROUP BY
+        E.emp_code,
+        E.emp_name,
+        TPS.desired_level,
+        TPS.actual_level,
+        TPS.gap
+      ORDER BY MAX(TPS.id) DESC;
+    `);
 
 
     return NextResponse.json(
@@ -129,12 +123,12 @@ export async function POST(req: Request) {
 /* ===================== PUT (UPDATE) ===================== */
 export async function PUT(req: Request) {
   try {
-    const { emp_code, desired_level, actual_level } = await req.json();
+    const { id, desired_level, actual_level } = await req.json();
 
     const pool = await sql.connect(config);
 
     await pool.request()
-      .input("emp_code", sql.VarChar(20), emp_code)
+      .input("id", sql.Int, id)
       .input("desired_level", sql.Int, desired_level)
       .input("actual_level", sql.Int, actual_level)
       .query(`
@@ -142,7 +136,7 @@ export async function PUT(req: Request) {
         SET
           desired_level = @desired_level,
           actual_level = @actual_level
-        WHERE employee_id = @emp_code
+        WHERE id = @id
       `);
 
     return NextResponse.json({ success: true });

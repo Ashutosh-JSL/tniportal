@@ -88,7 +88,7 @@ export async function GET() {
         TP.responsible_person,
         TP.target_date,
         TP.training_location,
-        
+        TP.employee_id,
         E.emp_name
       FROM dbo.TrainingPlan TP
       INNER JOIN dbo.Employees E
@@ -101,6 +101,48 @@ export async function GET() {
   } catch (error) {
     console.error("GET ERROR:", error);
     return NextResponse.json([]);
+  }
+}
+
+/* ===================== PUT ===================== */
+export async function PUT(req: Request) {
+  try {
+    const {
+      plan_id,
+      plan_desc,
+      employee_id,
+      year,
+      responsible_person,
+      target_date,
+      training_location,
+    } = await req.json();
+
+    const pool = await sql.connect(config);
+
+    await pool.request()
+      .input("plan_id", sql.Int, plan_id)
+      .input("employee_id", sql.VarChar(50), employee_id)
+      .input("plan_desc", sql.VarChar(255), plan_desc)
+      .input("year", sql.VarChar(10), year || null)
+      .input("responsible_person", sql.NVarChar(150), responsible_person || null)
+      .input("target_date", sql.Date, target_date || null)
+      .input("training_location", sql.NVarChar(20), training_location || null)
+      .query(`
+        UPDATE dbo.TrainingPlan
+        SET
+          employee_id = @employee_id,
+          plan_desc = @plan_desc,
+          year = @year,
+          responsible_person = @responsible_person,
+          target_date = @target_date,
+          training_location = @training_location
+        WHERE plan_id = @plan_id
+      `);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("PUT ERROR:", error);
+    return NextResponse.json([], { status: 500 });
   }
 }
 
@@ -118,7 +160,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
 
-  } catch (error) {
+  } catch {
     return NextResponse.json([], { status: 500 });
   }
 }

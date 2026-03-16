@@ -10,6 +10,7 @@ interface Employee {
 interface Plan {
   plan_id: number;
   plan_desc: string;
+  employee_id: string;
   emp_name: string;
   year: string;
   responsible_person: string;
@@ -22,166 +23,240 @@ interface PlanMaster {
   plan_Heading: string;
 }
 
-export default function TrainingPlanPage() {
+interface AuthorizationItem {
+  source_plan_id: number | null;
+  status: string;
+}
 
+type FormState = {
+  plan_desc: string;
+  employee_id: string;
+  year: string;
+  responsible_person: string;
+  target_date: string;
+  training_location: string;
+};
+
+const emptyForm: FormState = {
+  plan_desc: "",
+  employee_id: "",
+  year: "",
+  responsible_person: "",
+  target_date: "",
+  training_location: "",
+};
+
+export default function TrainingPlanPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planHeadings, setPlanHeadings] = useState<PlanMaster[]>([]);
+  const [formData, setFormData] = useState<FormState>(emptyForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<FormState>(emptyForm);
+  const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
+  const [submittedPlanIds, setSubmittedPlanIds] = useState<number[]>([]);
+  const [activeRole] = useState(() =>
+    typeof window === "undefined" ? "" : localStorage.getItem("activeRole") ?? "",
+  );
 
-  const [formData, setFormData] = useState({
-    plan_desc: "",
-    Id: "",
-    year: "",
-    responsible_person: "",
-    target_date: "",
-    training_location: "",
-  });
-
-  /* ================= DEBUG ================= */
-  useEffect(() => {
-    console.log("FORM STATE:", formData);
-  }, [formData]);
-
-  /* ================= LOAD GRID ================= */
   const loadPlans = async () => {
-    const res = await fetch("/api/incharge/training-plan", {
-      cache: "no-store",
-    });
-    const data = await res.json();
-    setPlans(data);
+    const [plansRes, authorizationRes] = await Promise.all([
+      fetch("/api/incharge/training-plan", {
+        cache: "no-store",
+      }),
+      fetch("/api/incharge/training-plan-authorization", {
+        cache: "no-store",
+      }),
+    ]);
+
+    const plansData = await plansRes.json();
+    const authorizationData = await authorizationRes.json();
+
+    setPlans(Array.isArray(plansData) ? plansData : []);
+
+    const pendingIds = Array.isArray(authorizationData)
+      ? authorizationData
+          .filter(
+            (item: AuthorizationItem) =>
+              item.status === "Pending" &&
+              Number.isFinite(Number(item.source_plan_id)),
+          )
+          .map((item: AuthorizationItem) => Number(item.source_plan_id))
+      : [];
+
+    setSubmittedPlanIds(pendingIds);
   };
 
-  /* ================= PAGE LOAD ================= */
   useEffect(() => {
-    fetch("/api/incharge/employees")
-      .then(res => res.json())
-      .then(setEmployees);
+    const timer = window.setTimeout(() => {
+      void fetch("/api/incharge/employees")
+        .then((res) => res.json())
+        .then((data) => setEmployees(Array.isArray(data) ? data : []));
 
-    fetch("/api/incharge/training-plan-master")
-      .then(res => res.json())
-      .then(setPlanHeadings);
+      void fetch("/api/incharge/training-plan-master")
+        .then((res) => res.json())
+        .then((data) => setPlanHeadings(Array.isArray(data) ? data : []));
 
-    loadPlans();
+      void loadPlans();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
-  /* ================= SUBMIT ================= */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.Id) {
+    if (!formData.employee_id) {
       alert("Please select employee");
       return;
     }
 
-    try {
-      const payload = {
-        plan_desc: formData.plan_desc,
-        employee_id: formData.Id,
-        year: formData.year,
-        responsible_person: formData.responsible_person,
-        target_date: formData.target_date,
-        training_location: formData.training_location,
-      };
+    const res = await fetch("/api/incharge/training-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
 
-      console.log("SENDING PAYLOAD:", payload);
-
-      const res = await fetch("/api/incharge/training-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error("Failed to save");
-
-      alert("Training plan submitted successfully!");
-
-      await loadPlans();
-
-      setFormData({
-        plan_desc: "",
-        Id: "",
-        year: "",
-        responsible_person: "",
-        target_date: "",
-        training_location: "",
-      });
-
-    } catch (error) {
-      console.error(error);
+    if (!res.ok) {
       alert("Something went wrong while saving");
+      return;
     }
+
+    alert("Training plan submitted successfully");
+    setFormData(emptyForm);
+    await loadPlans();
   };
 
-  /* ================= DELETE ================= */
-  const handleDelete = async (plan_id: number) => {
-    if (!confirm("Are you sure you want to delete this record?")) return;
+  const startEdit = (plan: Plan) => {
+    setEditingId(plan.plan_id);
+    setEditForm({
+      plan_desc: plan.plan_desc ?? "",
+      employee_id: plan.employee_id ?? "",
+      year: plan.year ?? "",
+      responsible_person: plan.responsible_person ?? "",
+      target_date: plan.target_date ? plan.target_date.split("T")[0] : "",
+      training_location: plan.training_location ?? "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm(emptyForm);
+  };
+
+  const saveEdit = async (planId: number) => {
+    const res = await fetch("/api/incharge/training-plan", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        plan_id: planId,
+        ...editForm,
+      }),
+    });
+
+    if (!res.ok) {
+      alert("Failed to update training plan");
+      return;
+    }
+
+    setEditingId(null);
+    setEditForm(emptyForm);
+    await loadPlans();
+  };
+
+  const handleDelete = async (planId: number) => {
+    if (!confirm("Delete this training plan?")) return;
 
     await fetch("/api/incharge/training-plan", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan_id }),
+      body: JSON.stringify({ plan_id: planId }),
     });
 
-    loadPlans();
+    await loadPlans();
+  };
+
+  const togglePlanSelection = (planId: number) => {
+    setSelectedPlanIds((prev) =>
+      prev.includes(planId)
+        ? prev.filter((id) => id !== planId)
+        : [...prev, planId],
+    );
+  };
+
+  const submitSelectedToAdmin = async () => {
+    const selectedRecords = plans.filter((plan) =>
+      selectedPlanIds.includes(plan.plan_id),
+    );
+
+    if (selectedRecords.length === 0) {
+      alert("Please select at least one grid row");
+      return;
+    }
+
+    const res = await fetch("/api/incharge/training-plan-authorization", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: selectedRecords }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "Failed to send rows for admin authorization");
+      return;
+    }
+
+    alert("Selected rows sent to admin authorization successfully");
+    setSelectedPlanIds([]);
+    await loadPlans();
   };
 
   return (
     <div className="min-h-screen bg-slate-100 py-10">
-      <div className="max-w-7xl mx-auto px-6">
-
-        {/* ================= FORM ================= */}
-        <div className="bg-white rounded-xl shadow p-8 mb-10">
-          <h2 className="text-xl font-semibold mb-6">
-            📘 Training Plan Entry
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-10 rounded-xl bg-white p-8 shadow">
+          <h2 className="mb-6 text-xl font-semibold">
+            Training Plan Entry
           </h2>
 
           <form
             onSubmit={handleSubmit}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
           >
-
-            {/* ================= PLAN DESCRIPTION DROPDOWN ================= */}
             <div className="lg:col-span-3">
               <label className="text-sm font-medium">
                 Training Plan Description
               </label>
 
               <select
-                className="w-full border rounded px-4 py-2 mt-1"
+                className="mt-1 w-full rounded border px-4 py-2"
                 value={formData.plan_desc}
-                onChange={e =>
+                onChange={(e) =>
                   setFormData({ ...formData, plan_desc: e.target.value })
                 }
                 required
               >
                 <option value="">Select Training Plan</option>
-
-                {planHeadings.map(plan => (
-                  <option
-                    key={plan.plan_master_id}
-                    value={plan.plan_Heading}
-                  >
+                {planHeadings.map((plan) => (
+                  <option key={plan.plan_master_id} value={plan.plan_Heading}>
                     {plan.plan_Heading}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* ================= EMPLOYEE ================= */}
             <div>
               <label className="text-sm font-medium">Employee</label>
-
               <select
-                className="w-full border rounded px-4 py-2 mt-1"
-                value={formData.Id}
-                onChange={e =>
-                  setFormData({ ...formData, Id: e.target.value })
+                className="mt-1 w-full rounded border px-4 py-2"
+                value={formData.employee_id}
+                onChange={(e) =>
+                  setFormData({ ...formData, employee_id: e.target.value })
                 }
                 required
               >
                 <option value="">Select Employee</option>
-
-                {employees.map(emp => (
+                {employees.map((emp) => (
                   <option key={emp.emp_code} value={emp.emp_code}>
                     {emp.emp_name}
                   </option>
@@ -189,28 +264,24 @@ export default function TrainingPlanPage() {
               </select>
             </div>
 
-            {/* Year */}
             <div>
               <label className="text-sm font-medium">Year</label>
               <input
-                className="w-full border rounded px-4 py-2 mt-1"
+                className="mt-1 w-full rounded border px-4 py-2"
                 placeholder="2026"
                 value={formData.year}
-                onChange={e =>
+                onChange={(e) =>
                   setFormData({ ...formData, year: e.target.value })
                 }
               />
             </div>
 
-            {/* Responsible */}
             <div>
-              <label className="text-sm font-medium">
-                Responsible Person
-              </label>
+              <label className="text-sm font-medium">Responsible Person</label>
               <input
-                className="w-full border rounded px-4 py-2 mt-1"
+                className="mt-1 w-full rounded border px-4 py-2"
                 value={formData.responsible_person}
-                onChange={e =>
+                onChange={(e) =>
                   setFormData({
                     ...formData,
                     responsible_person: e.target.value,
@@ -219,16 +290,13 @@ export default function TrainingPlanPage() {
               />
             </div>
 
-            {/* Target Date */}
             <div>
-              <label className="text-sm font-medium">
-                Target Completion Date
-              </label>
+              <label className="text-sm font-medium">Target Completion Date</label>
               <input
                 type="date"
-                className="w-full border rounded px-4 py-2 mt-1"
+                className="mt-1 w-full rounded border px-4 py-2"
                 value={formData.target_date}
-                onChange={e =>
+                onChange={(e) =>
                   setFormData({
                     ...formData,
                     target_date: e.target.value,
@@ -237,16 +305,12 @@ export default function TrainingPlanPage() {
               />
             </div>
 
-            {/* Location */}
             <div>
-              <label className="text-sm font-medium">
-                Training Location
-              </label>
-
+              <label className="text-sm font-medium">Training Location</label>
               <select
-                className="w-full border rounded px-4 py-2 mt-1"
+                className="mt-1 w-full rounded border px-4 py-2"
                 value={formData.training_location}
-                onChange={e =>
+                onChange={(e) =>
                   setFormData({
                     ...formData,
                     training_location: e.target.value,
@@ -262,23 +326,34 @@ export default function TrainingPlanPage() {
             </div>
 
             <div className="lg:col-span-3">
-              <button className="bg-indigo-600 text-white px-8 py-2 rounded">
-                ➕ Save Training Plan
+              <button className="rounded bg-indigo-600 px-8 py-2 text-white">
+                Save Training Plan
               </button>
             </div>
-
           </form>
         </div>
 
-        {/* ================= GRID ================= */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">
-            📋 Training Plan List
-          </h2>
+        <div className="rounded-xl bg-white p-6 shadow">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h2 className="text-lg font-semibold">Training Plan List</h2>
 
-          <table className="w-full text-sm border">
+            {activeRole === "Incharge" ? (
+              <button
+                type="button"
+                onClick={submitSelectedToAdmin}
+                className="rounded bg-emerald-600 px-5 py-2 text-sm font-medium text-white"
+              >
+                Send Checked Rows To Admin Authorization
+              </button>
+            ) : null}
+          </div>
+
+          <table className="w-full border border-collapse text-sm">
             <thead className="bg-slate-100 text-center">
               <tr>
+                {activeRole === "Incharge" ? (
+                  <th className="p-3">Select</th>
+                ) : null}
                 <th className="p-3">Plan</th>
                 <th className="p-3">Employee</th>
                 <th className="p-3">Responsible</th>
@@ -290,29 +365,183 @@ export default function TrainingPlanPage() {
             </thead>
 
             <tbody className="text-center">
-              {plans.map(p => (
-                <tr key={p.plan_id} className="border-t">
-                  <td className="p-3">{p.plan_desc}</td>
-                  <td className="p-3">{p.emp_name}</td>
-                  <td className="p-3">{p.responsible_person}</td>
-                  <td className="p-3">{p.target_date?.split("T")[0]}</td>
-                  <td className="p-3">{p.training_location}</td>
-                  <td className="p-3">{p.year}</td>
+              {plans.map((plan) => (
+                <tr key={plan.plan_id} className="border-t">
+                  {activeRole === "Incharge" ? (
+                    <td className="p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedPlanIds.includes(plan.plan_id)}
+                        disabled={submittedPlanIds.includes(plan.plan_id)}
+                        onChange={() => togglePlanSelection(plan.plan_id)}
+                        className="h-4 w-4"
+                      />
+                      {submittedPlanIds.includes(plan.plan_id) ? (
+                        <div className="mt-1 text-[11px] font-medium text-amber-600">
+                          Pending
+                        </div>
+                      ) : null}
+                    </td>
+                  ) : null}
+
                   <td className="p-3">
-                    <button
-                      onClick={() => handleDelete(p.plan_id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      🗑 Delete
-                    </button>
+                    {editingId === plan.plan_id ? (
+                      <select
+                        className="w-full rounded border px-2 py-1"
+                        value={editForm.plan_desc}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, plan_desc: e.target.value })
+                        }
+                      >
+                        <option value="">Select Training Plan</option>
+                        {planHeadings.map((heading) => (
+                          <option
+                            key={heading.plan_master_id}
+                            value={heading.plan_Heading}
+                          >
+                            {heading.plan_Heading}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      plan.plan_desc
+                    )}
+                  </td>
+
+                  <td className="p-3">
+                    {editingId === plan.plan_id ? (
+                      <select
+                        className="w-full rounded border px-2 py-1"
+                        value={editForm.employee_id}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, employee_id: e.target.value })
+                        }
+                      >
+                        <option value="">Select Employee</option>
+                        {employees.map((emp) => (
+                          <option key={emp.emp_code} value={emp.emp_code}>
+                            {emp.emp_name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      plan.emp_name
+                    )}
+                  </td>
+
+                  <td className="p-3">
+                    {editingId === plan.plan_id ? (
+                      <input
+                        className="w-full rounded border px-2 py-1"
+                        value={editForm.responsible_person}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            responsible_person: e.target.value,
+                          })
+                        }
+                      />
+                    ) : (
+                      plan.responsible_person
+                    )}
+                  </td>
+
+                  <td className="p-3">
+                    {editingId === plan.plan_id ? (
+                      <input
+                        type="date"
+                        className="w-full rounded border px-2 py-1"
+                        value={editForm.target_date}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            target_date: e.target.value,
+                          })
+                        }
+                      />
+                    ) : (
+                      plan.target_date?.split("T")[0]
+                    )}
+                  </td>
+
+                  <td className="p-3">
+                    {editingId === plan.plan_id ? (
+                      <select
+                        className="w-full rounded border px-2 py-1"
+                        value={editForm.training_location}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            training_location: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Select Location</option>
+                        <option value="On Job">On Job</option>
+                        <option value="Internal">Internal</option>
+                        <option value="External">External</option>
+                      </select>
+                    ) : (
+                      plan.training_location
+                    )}
+                  </td>
+
+                  <td className="p-3">
+                    {editingId === plan.plan_id ? (
+                      <input
+                        className="w-full rounded border px-2 py-1"
+                        value={editForm.year}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, year: e.target.value })
+                        }
+                      />
+                    ) : (
+                      plan.year
+                    )}
+                  </td>
+
+                  <td className="p-3 space-x-2">
+                    {editingId === plan.plan_id ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => saveEdit(plan.plan_id)}
+                          className="rounded bg-green-600 px-3 py-1 text-white"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="rounded bg-gray-500 px-3 py-1 text-white"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(plan)}
+                          className="rounded bg-blue-600 px-3 py-1 text-white"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(plan.plan_id)}
+                          className="rounded bg-red-600 px-3 py-1 text-white"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
-
           </table>
         </div>
-
       </div>
     </div>
   );
