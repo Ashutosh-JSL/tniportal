@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 
 type Role = string;
 
+type NavItem = {
+  name: string;
+  href: string;
+};
+
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [roles] = useState<Role[]>(() => {
     if (typeof window === "undefined") {
@@ -18,6 +24,7 @@ export default function Navbar() {
     const storedRoles = localStorage.getItem("userRoles");
     return storedRoles ? JSON.parse(storedRoles) : [];
   });
+
   const [activeRole, setActiveRole] = useState<Role | null>(() => {
     if (typeof window === "undefined") {
       return null;
@@ -25,6 +32,7 @@ export default function Navbar() {
 
     return localStorage.getItem("activeRole");
   });
+
   const [username] = useState<string | null>(() => {
     if (typeof window === "undefined") {
       return null;
@@ -32,9 +40,11 @@ export default function Navbar() {
 
     return localStorage.getItem("username");
   });
-  const [masterOpen, setMasterOpen] = useState(false);
+
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const roleMenuRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!roles.length || !activeRole) {
@@ -50,220 +60,209 @@ export default function Navbar() {
       ) {
         setRoleMenuOpen(false);
       }
+
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
     };
 
     window.addEventListener("mousedown", handleClickOutside);
     return () => window.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setRoleMenuOpen(false);
+        setMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   if (!activeRole) return null;
 
-  /* ================= MENU PER ROLE ================= */
-  const menuItems: Record<string, { name: string; href: string }[]> = {
+  const menuItems: Record<string, NavItem[]> = {
     Admin: [
       { name: "Dashboard", href: "/Home" },
       { name: "Skill Authorization", href: "/incharge/skills-authorization" },
-      { name: "Training Authorization", href: "/incharge/training-plan-authorization" },
-      { name: "Post-Training Authorization", href: "/incharge/post-training-authorization" },
+      {
+        name: "Training Authorization",
+        href: "/incharge/training-plan-authorization",
+      },
+      {
+        name: "Post-Training Authorization",
+        href: "/incharge/post-training-authorization",
+      },
+      { name: "Role Authorization", href: "/incharge/role-auth" },
     ],
-
     Incharge: [
       { name: "Dashboard", href: "/Home" },
       { name: "Employees", href: "/incharge/employees" },
       { name: "Skills Acquired", href: "/incharge/skills" },
       { name: "Training Plan", href: "/incharge/training-plan" },
       { name: "Post-training", href: "/incharge/Post-Training" },
+      { name: "Add Skills", href: "/incharge/skill-master" },
+      { name: "Add Training Plan", href: "/incharge/training-plan-master" },
     ],
   };
 
   const currentMenu = menuItems[activeRole] || [];
 
-  /* ================= ROLE SWITCH ================= */
   const handleRoleChange = (role: string) => {
     setActiveRole(role);
     localStorage.setItem("activeRole", role);
+    setRoleMenuOpen(false);
   };
 
-  /* ================= LOGOUT ================= */
   const handleLogout = async () => {
+    setMenuOpen(false);
     localStorage.clear();
     await signOut({ redirect: false });
     router.replace("/login");
     router.refresh();
   };
 
-  /* ================= UI ================= */
+  const usernameInitial = username?.charAt(0).toUpperCase() || "U";
+
   return (
-    <nav className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-lg">
+    <>
+      <nav className="sticky top-0 z-50 px-4 pt-2 sm:px-6 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
+        <div className="relative mx-auto max-w-[1700px] overflow-visible rounded-3xl border border-white/65 bg-[linear-gradient(125deg,rgba(241,249,255,0.92),rgba(226,243,252,0.78),rgba(232,238,255,0.9))] text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.16)] backdrop-blur-xl">
+          <div className="pointer-events-none absolute -left-16 -top-16 h-44 w-44 rounded-full bg-cyan-400/25 blur-2xl" />
+          <div className="pointer-events-none absolute -right-16 -bottom-16 h-44 w-44 rounded-full bg-indigo-400/20 blur-2xl" />
+          <div className="px-4 py-3 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-md">
+                  TN
+                </div>
+                <div className="min-w-0">
+                  <h1 className="truncate text-base font-semibold sm:text-lg">
+                    Training Need Identification Portal
+                  </h1>
+                  <p className="text-xs font-medium text-slate-600">{activeRole} Dashboard</p>
+                </div>
+              </div>
 
-  <div className="max-w-7xl mx-auto px-6">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <div className="relative" ref={roleMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setRoleMenuOpen((open) => !open)}
+                    className="min-w-32 rounded-xl border border-cyan-100/90 bg-white/80 px-4 py-2 text-left text-sm font-semibold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-white hover:shadow-[0_12px_24px_rgba(14,116,144,0.18)] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{activeRole}</span>
+                      <svg
+                        className={`h-4 w-4 transition-transform duration-200 ${roleMenuOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
 
+                  {roleMenuOpen ? (
+                    <div className="absolute right-0 top-[calc(100%+0.55rem)] z-50 min-w-44 rounded-2xl border border-white/80 bg-white/85 p-2 shadow-[0_20px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+                      {roles.map((role) => {
+                        const isActive = role === activeRole;
 
-
-
-    {/* ================= BOTTOM ROW ================= */}
-    <div className="flex items-center justify-between py-3 border-t border-white/20 text-white">
-
-      {/* LEFT — LOGO + TITLE */}
-      <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg bg-white/20 flex items-center justify-center font-bold">
-          TN
-        </div>
-
-        <div>
-          <h1 className="font-semibold">
-            Training Need Identification Portal
-          </h1>
-          <p className="text-xs text-white/70">
-            {activeRole} Dashboard
-          </p>
-        </div>
-      </div>
-
-      {/* RIGHT — USER + LOGOUT */}
-      <div className="flex items-center gap-3 bg-white/10 px-3 py-1.5 rounded-full">
-
-        <div className="h-7 w-7 rounded-full bg-white text-blue-600 flex items-center justify-center text-xs font-bold">
-          {username?.charAt(0).toUpperCase()}
-        </div>
-
-        <span className="text-sm">{username}</span>
-
-        <button
-          onClick={handleLogout}
-          className="bg-white text-blue-600 px-3 py-1 rounded-md text-sm hover:bg-gray-100"
-        >
-          Logout
-        </button>
-
-      </div>
-
-    </div>
-
-    {/* ================= TOP ROW ================= */}
-    <div className="flex h-14 items-center justify-between text-white text-sm font-medium">
-
-      {/* MENU */}
-      <div className="flex items-center gap-8">
-
-        {currentMenu.map(item => (
-          <Link key={item.name} href={item.href}>
-            {item.name}
-          </Link>
-        ))}
-
-        {/* MASTER DROPDOWN */}
-        <div className="relative">
-          <button
-            onClick={() => setMasterOpen(!masterOpen)}
-            className="flex items-center gap-1"
-          >
-            Master ▾
-          </button>
-
-          {masterOpen && (
-            <div className="absolute top-8 left-0 w-56 bg-white rounded-xl shadow-xl z-50 text-sm text-slate-700">
-
-              {activeRole === "Incharge" && (
-                <>
-                  <Link href="/incharge/skill-master" className="block px-4 py-3 hover:bg-indigo-50">
-                    Add Skills
-                  </Link>
-                  <Link href="/incharge/training-plan-master" className="block px-4 py-3 hover:bg-indigo-50">
-                    Add Training Plan
-                  </Link>
-                </>
-              )}
-
-              {activeRole === "Admin" && (
-                <Link href="/incharge/role-auth" className="block px-4 py-3 hover:bg-indigo-50">
-                  Role Authorization
-                </Link>
-              )}
-
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* ROLE SELECTOR */}
-      <div className="relative" ref={roleMenuRef}>
-        <button
-          type="button"
-          onClick={() => setRoleMenuOpen((open) => !open)}
-          className="
-            min-w-40 rounded-2xl border border-white/25 bg-white/16
-            px-4 py-2.5 text-left text-sm font-semibold text-white
-            shadow-[0_10px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl
-            transition hover:bg-white/24 focus:border-white/45
-            focus:bg-white/24 focus:outline-none
-          "
-        >
-          <span>{activeRole}</span>
-          <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-white/80">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className={`h-5 w-5 transition ${roleMenuOpen ? "rotate-180" : ""}`}
-              aria-hidden="true"
-            >
-              <path
-                fillRule="evenodd"
-                d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </span>
-        </button>
-
-        {roleMenuOpen ? (
-          <div
-            className="
-              absolute right-0 top-[calc(100%+0.6rem)] z-50 min-w-40 overflow-hidden
-              rounded-2xl border border-slate-200 bg-white shadow-2xl
-              shadow-slate-900/20
-            "
-          >
-            {roles.map((role) => {
-              const isActive = role === activeRole;
-
-              return (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => {
-                    handleRoleChange(role);
-                    setRoleMenuOpen(false);
-                  }}
-                  className={`
-                    flex w-full items-center justify-between px-4 py-3 text-left
-                    text-sm transition
-                    ${isActive
-                      ? "bg-gradient-to-r from-blue-50 to-indigo-50 font-semibold text-indigo-700"
-                      : "text-slate-700 hover:bg-slate-50"}
-                  `}
-                >
-                  <span>{role}</span>
-                  {isActive ? (
-                    <span className="text-xs font-semibold uppercase tracking-wide text-indigo-500">
-                      Active
-                    </span>
+                        return (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => handleRoleChange(role)}
+                            className={`mb-1 block w-full rounded-xl px-4 py-2.5 text-left text-sm font-semibold transition-all duration-200 last:mb-0 ${
+                              isActive
+                                ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.35)]"
+                                : "text-slate-700 hover:bg-cyan-50"
+                            }`}
+                          >
+                            {role}
+                          </button>
+                        );
+                      })}
+                    </div>
                   ) : null}
-                </button>
-              );
-            })}
+                </div>
+
+                <div
+                  className="relative"
+                  ref={menuRef}
+                  onMouseEnter={() => setMenuOpen(true)}
+                  onFocusCapture={() => setMenuOpen(true)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen((open) => !open)}
+                    aria-expanded={menuOpen}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold shadow-[0_8px_20px_rgba(15,23,42,0.08)] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 ${
+                      menuOpen
+                        ? "border-blue-400 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_12px_26px_rgba(37,99,235,0.35)]"
+                        : "border-cyan-100/90 bg-white/80 text-slate-700 hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-white hover:shadow-[0_12px_24px_rgba(14,116,144,0.18)]"
+                    }`}
+                  >
+                    Menu
+                    <svg
+                      className={`h-4 w-4 transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {menuOpen ? (
+                    <div className="absolute right-0 top-full z-[85] mt-5 max-w-[92vw]">
+                      <div className="rounded-2xl border border-white/90 bg-white/85 p-3 shadow-[0_20px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+                        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap rounded-xl bg-gradient-to-r from-cyan-50/80 via-sky-50/70 to-indigo-50/80 p-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                          {currentMenu.map((item) => {
+                            const isActive = pathname === item.href;
+
+                            return (
+                              <Link
+                                key={item.name}
+                                href={item.href}
+                                onClick={() => setMenuOpen(false)}
+                                className={`shrink-0 rounded-full border px-4 py-2.5 text-sm font-semibold tracking-wide transition-all duration-200 ${
+                                  isActive
+                                    ? "border-blue-300 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.35)]"
+                                    : "border-slate-100 bg-white/95 text-slate-700 hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-white hover:text-slate-900 hover:shadow-[0_12px_22px_rgba(14,116,144,0.2)]"
+                                }`}
+                              >
+                                {item.name}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2 rounded-full border border-cyan-100/90 bg-white/70 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition-all duration-200 hover:shadow-[0_12px_24px_rgba(14,116,144,0.2)]">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-sm">
+                    {usernameInitial}
+                  </div>
+                  <span className="max-w-36 truncate text-sm font-medium text-slate-700">{username}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="rounded-lg border border-cyan-100/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all duration-200 hover:bg-cyan-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : null}
-      </div>
-
-    </div>
-
-    
-
-  </div>
-
-</nav>
+        </div>
+      </nav>
+    </>
   );
 }

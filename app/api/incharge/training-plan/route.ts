@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
 import sql from "mssql";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
+
+type SessionUser = {
+  id?: string;
+  employeeCode?: string;
+};
+
+async function getSessionUserId() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser | undefined;
+  return String(user?.employeeCode ?? user?.id ?? "").trim();
+}
 
 const config = {
   user: "sa",
-  password: "Jindal@pex2020",
-  server: "10.7.81.3",
+  password: "Ashusolid@1234",
+  server: "JSLLAP0727",
   database: "TNIP_NEW",
   options: {
     trustServerCertificate: true,
@@ -16,6 +29,12 @@ const config = {
 export async function POST(req: Request) {
 
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     console.log("RECEIVED:", body);
 
@@ -40,6 +59,8 @@ export async function POST(req: Request) {
      
       .input("training_location", sql.NVarChar(20), training_location || null)
       .input("status", sql.Bit, 1)
+      .input("CrBy", sql.VarChar(20), userId)
+      .input("UpBy", sql.VarChar(20), userId)
       .query(`
         INSERT INTO dbo.TrainingPlan
         (
@@ -51,7 +72,12 @@ export async function POST(req: Request) {
           
           training_location,
           status,
-          created_at
+          created_at,
+          IsActive,
+          CrBy,
+          CrDt,
+          UpBy,
+          UpDt
         )
         VALUES
         (
@@ -63,6 +89,11 @@ export async function POST(req: Request) {
          
           @training_location,
           @status,
+          GETDATE(),
+          1,
+          @CrBy,
+          GETDATE(),
+          @UpBy,
           GETDATE()
         )
       `);
@@ -78,9 +109,17 @@ export async function POST(req: Request) {
 /* ===================== GET ===================== */
 export async function GET() {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const pool = await sql.connect(config);
 
-    const result = await pool.request().query(`
+    const result = await pool.request()
+    .input("user_id", sql.VarChar(20), userId)
+    .query(`
       SELECT
         TP.plan_id,
         TP.plan_desc,
@@ -93,6 +132,8 @@ export async function GET() {
       FROM dbo.TrainingPlan TP
       INNER JOIN dbo.Employees E
         ON TP.employee_id = E.emp_code
+      WHERE TP.IsActive = 1
+        AND (TP.CrBy = @user_id OR TP.UpBy = @user_id)
       ORDER BY TP.plan_id DESC
     `);
 
@@ -107,6 +148,12 @@ export async function GET() {
 /* ===================== PUT ===================== */
 export async function PUT(req: Request) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const {
       plan_id,
       plan_desc,
@@ -127,6 +174,7 @@ export async function PUT(req: Request) {
       .input("responsible_person", sql.NVarChar(150), responsible_person || null)
       .input("target_date", sql.Date, target_date || null)
       .input("training_location", sql.NVarChar(20), training_location || null)
+      .input("UpBy", sql.VarChar(20), userId)
       .query(`
         UPDATE dbo.TrainingPlan
         SET
@@ -135,7 +183,9 @@ export async function PUT(req: Request) {
           year = @year,
           responsible_person = @responsible_person,
           target_date = @target_date,
-          training_location = @training_location
+          training_location = @training_location,
+          UpBy = @UpBy,
+          UpDt = GETDATE()
         WHERE plan_id = @plan_id
       `);
 
@@ -150,13 +200,28 @@ export async function PUT(req: Request) {
 /* ===================== DELETE ===================== */
 export async function DELETE(req: Request) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { plan_id } = await req.json();
 
     const pool = await sql.connect(config);
 
     await pool.request()
       .input("plan_id", sql.Int, plan_id)
-      .query(`DELETE FROM dbo.TrainingPlan WHERE plan_id = @plan_id`);
+      .input("UpBy", sql.VarChar(20), userId)
+      .query(`
+        UPDATE dbo.TrainingPlan
+        SET
+          IsActive = 0,
+          status = 0,
+          UpBy = @UpBy,
+          UpDt = GETDATE()
+        WHERE plan_id = @plan_id
+      `);
 
     return NextResponse.json({ success: true });
 

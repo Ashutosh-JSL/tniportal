@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
 import sql from "mssql";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
 import { getConnection } from "@/lib/dbConnect";
 
 /* ===================== DB CONFIG ===================== */
-    const pool = await getConnection();
+
+type SessionUser = {
+  id?: string;
+  employeeCode?: string;
+};
+
+async function getSessionUserEmployeeCode() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser | undefined;
+  return String(user?.employeeCode ?? user?.id ?? "").trim();
+}
 
 /* ===================== GET ===================== */
 /*
@@ -15,6 +27,14 @@ import { getConnection } from "@/lib/dbConnect";
 */
 export async function GET(req: Request) {
   try {
+    const userEmployeeCode = await getSessionUserEmployeeCode();
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
 
@@ -56,7 +76,9 @@ export async function GET(req: Request) {
     }
 
     /* ================= LIST LOCAL ================= */
-    const list = await pool.request().query(`
+    const list = await pool.request()
+    .input("UserEmployeeCode", sql.VarChar(20), userEmployeeCode)
+    .query(`
       SELECT
       [Id],
         emp_code,
@@ -64,9 +86,12 @@ export async function GET(req: Request) {
         designation,
         department,
         functional_area,
-        Reporting_Manager AS Direct_Manager_Name
+        Reporting_Manager AS Direct_Manager_Name,
+        CrBy AS created_by,
+        UpBy AS updated_by
       FROM dbo.Employees
-      WHERE status = 1
+      WHERE IsActive = 1
+        AND (CrBy = @UserEmployeeCode OR UpBy = @UserEmployeeCode)
       ORDER BY [Id] desc
     `);
 
@@ -85,6 +110,15 @@ export async function GET(req: Request) {
 /* Save employee to TNIP_NEW.dbo.Employees */
 export async function POST(req: Request) {
   try {
+    const userEmployeeCode = await getSessionUserEmployeeCode();
+
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
 
     const {
@@ -105,16 +139,32 @@ export async function POST(req: Request) {
       .input("designation", sql.VarChar(100), designation)
       .input("department", sql.VarChar(100), department)
       .input("functional_area", sql.VarChar(150), functional_area)
+      .input("CrBy", sql.VarChar(20), userEmployeeCode)
+      .input("UpBy", sql.VarChar(20), userEmployeeCode)
       .input("reporting_manager", sql.NVarChar(150), Direct_Manager_Name) // ✅ NEW
       .query(`
-        IF NOT EXISTS (
+        IF EXISTS (
           SELECT 1 FROM dbo.Employees WHERE emp_code = @emp_code
         )
         BEGIN
+          UPDATE dbo.Employees
+          SET
+            emp_name = @emp_name,
+            designation = @designation,
+            department = @department,
+            functional_area = @functional_area,
+            Reporting_Manager = @reporting_manager,
+            IsActive = 1,
+            UpBy = @UpBy,
+            UpDt = GETDATE()
+          WHERE emp_code = @emp_code
+        END
+        ELSE
+        BEGIN
           INSERT INTO dbo.Employees
-          (emp_code, emp_name, designation, department, functional_area, Reporting_Manager, status)
+          (emp_code, emp_name, designation, department, functional_area, Reporting_Manager, IsActive, CrBy, CrDt, UpBy, UpDt)
           VALUES
-          (@emp_code, @emp_name, @designation, @department, @functional_area, @reporting_manager, 1)
+          (@emp_code, @emp_name, @designation, @department, @functional_area, @reporting_manager, 1, @CrBy, GETDATE(), @UpBy, GETDATE())
         END
       `);
 
@@ -132,6 +182,15 @@ export async function POST(req: Request) {
 /* Update local employee */
 export async function PUT(req: Request) {
   try {
+    const userEmployeeCode = await getSessionUserEmployeeCode();
+
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
 
     const {
@@ -152,6 +211,7 @@ export async function PUT(req: Request) {
       .input("designation", sql.VarChar(100), designation)
       .input("department", sql.VarChar(100), department)
       .input("functional_area", sql.VarChar(150), functional_area)
+      .input("UpBy", sql.VarChar(20), userEmployeeCode)
       .input("reporting_manager", sql.NVarChar(150), Direct_Manager_Name) // ✅ NEW
       .query(`
         UPDATE dbo.Employees
@@ -160,7 +220,9 @@ export async function PUT(req: Request) {
           designation = @designation,
           department = @department,
           functional_area = @functional_area,
-          Reporting_Manager = @reporting_manager   -- ✅ UPDATE
+          Reporting_Manager = @reporting_manager,   -- ✅ UPDATE
+          UpBy = @UpBy,
+          UpDt = GETDATE()
         WHERE emp_code = @emp_code
       `);
 
@@ -179,6 +241,15 @@ export async function PUT(req: Request) {
 /* Soft delete */
 export async function DELETE(req: Request) {
   try {
+    const userEmployeeCode = await getSessionUserEmployeeCode();
+
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const emp_code = searchParams.get("emp_code");
 
@@ -194,9 +265,13 @@ export async function DELETE(req: Request) {
     await pool
       .request()
       .input("emp_code", sql.VarChar(20), emp_code)
+      .input("UpBy", sql.VarChar(20), userEmployeeCode)
       .query(`
         UPDATE dbo.Employees
-        SET status = 0
+        SET
+          IsActive = 0,
+          UpBy = @UpBy,
+          UpDt = GETDATE()
         WHERE emp_code = @emp_code
       `);
 

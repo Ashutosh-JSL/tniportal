@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import sql from "mssql";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
 import { getConnection } from "@/lib/dbConnect";
 
 type ParsedRowKey = {
@@ -9,6 +11,17 @@ type ParsedRowKey = {
   employeeId: string;
   createdAt: string;
 };
+
+type SessionUser = {
+  id?: string;
+  employeeCode?: string;
+};
+
+async function getSessionUserId() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser | undefined;
+  return String(user?.employeeCode ?? user?.id ?? "").trim();
+}
 
 async function saveEvidenceFile(file: File | null) {
   if (!file) {
@@ -46,8 +59,16 @@ function parseRowKey(rowKey: string | null | undefined): ParsedRowKey | null {
 /* ================= GET ================= */
 export async function GET() {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const pool = await getConnection();
-    const result = await pool.request().query(`
+    const result = await pool.request()
+    .input("user_id", sql.VarChar(20), userId)
+    .query(`
       SELECT
         CONCAT(
           CAST(t.plan_id AS VARCHAR(20)),
@@ -61,6 +82,8 @@ export async function GET() {
       FROM dbo.Post_training_plan t
       LEFT JOIN dbo.Employees e
         ON t.employee_id = e.emp_code
+      WHERE t.IsActive = 1
+        AND (t.CrBy = @user_id OR t.UpBy = @user_id)
       ORDER BY t.plan_id DESC
     `);
 
@@ -74,6 +97,12 @@ export async function GET() {
 /* ================= POST ================= */
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const pool = await getConnection();
     const data = await req.formData();
     const fileName = await saveEvidenceFile((data.get("file") as File | null) ?? null);
@@ -111,6 +140,8 @@ export async function POST(req: NextRequest) {
       )
       .input("key_learnings", sql.NVarChar(sql.MAX), String(data.get("key_learnings") ?? ""))
       .input("evidence_file", sql.NVarChar(255), fileName)
+      .input("CrBy", sql.VarChar(20), userId)
+      .input("UpBy", sql.VarChar(20), userId)
       .query(`
         INSERT INTO dbo.Post_training_plan
         (
@@ -125,7 +156,12 @@ export async function POST(req: NextRequest) {
           effectiveness_actual,
           gap_fulfilled,
           key_learnings,
-          evidence_file
+          evidence_file,
+          IsActive,
+          CrBy,
+          CrDt,
+          UpBy,
+          UpDt
         )
         VALUES
         (
@@ -140,7 +176,12 @@ export async function POST(req: NextRequest) {
           @effectiveness_actual,
           @gap_fulfilled,
           @key_learnings,
-          @evidence_file
+          @evidence_file,
+          1,
+          @CrBy,
+          GETDATE(),
+          @UpBy,
+          GETDATE()
         )
       `);
 
@@ -155,6 +196,12 @@ export async function POST(req: NextRequest) {
 /* ================= PUT ================= */
 export async function PUT(req: NextRequest) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const pool = await getConnection();
     const data = await req.formData();
     const rowKey = parseRowKey(String(data.get("row_key") ?? ""));
@@ -216,6 +263,7 @@ export async function PUT(req: NextRequest) {
       )
       .input("key_learnings", sql.NVarChar(sql.MAX), String(data.get("key_learnings") ?? ""))
       .input("evidence_file", sql.NVarChar(255), fileName)
+      .input("UpBy", sql.VarChar(20), userId)
       .query(`
         UPDATE dbo.Post_training_plan
         SET
@@ -230,7 +278,9 @@ export async function PUT(req: NextRequest) {
           effectiveness_actual = @effectiveness_actual,
           gap_fulfilled = @gap_fulfilled,
           key_learnings = @key_learnings,
-          evidence_file = @evidence_file
+          evidence_file = @evidence_file,
+          UpBy = @UpBy,
+          UpDt = GETDATE()
         WHERE plan_id = @plan_id
           AND employee_id = @employee_id_lookup
           AND created_at = @created_at_lookup
@@ -247,6 +297,12 @@ export async function PUT(req: NextRequest) {
 /* ================= DELETE ================= */
 export async function DELETE(req: NextRequest) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { row_key } = await req.json();
     const rowKey = parseRowKey(String(row_key ?? ""));
 
@@ -260,8 +316,13 @@ export async function DELETE(req: NextRequest) {
       .input("plan_id", sql.Int, rowKey.planId)
       .input("employee_id_lookup", sql.VarChar(20), rowKey.employeeId)
       .input("created_at_lookup", sql.DateTime2, rowKey.createdAt)
+      .input("UpBy", sql.VarChar(20), userId)
       .query(`
-        DELETE FROM dbo.Post_training_plan
+        UPDATE dbo.Post_training_plan
+        SET
+          IsActive = 0,
+          UpBy = @UpBy,
+          UpDt = GETDATE()
         WHERE plan_id = @plan_id
           AND employee_id = @employee_id_lookup
           AND created_at = @created_at_lookup

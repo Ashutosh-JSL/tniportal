@@ -11,6 +11,7 @@ type AuthorizationItem = {
   desired_level: number;
   actual_level: number;
   gap: number;
+  requested_by: string;
   requested_by_name: string | null;
   status: string;
   requested_at: string;
@@ -60,7 +61,135 @@ export default function SkillAuthorizationPage() {
       return;
     }
 
-    loadItems();
+    void loadItems();
+  };
+
+  const downloadExcel = () => {
+    if (items.length === 0) {
+      alert("No data available to download");
+      return;
+    }
+
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const formatDateTime = (value: string | null) =>
+      value ? new Date(value).toLocaleString() : "";
+
+    const headers = [
+      "Employee Code",
+      "Employee Name",
+      "Skill",
+      "Desired Level",
+      "Actual Level",
+      "Gap",
+      "Requested By Code",
+      "Requested By Name",
+      "Requested At",
+      "Status",
+      "Reviewed By Name",
+      "Reviewed At",
+    ];
+
+    const rows = items.map((item, index) => [
+      item.emp_code,
+      item.emp_name,
+      item.skill_name,
+      item.desired_level,
+      item.actual_level,
+      item.gap,
+      item.requested_by,
+      item.requested_by_name ?? "",
+      formatDateTime(item.requested_at),
+      item.status,
+      item.reviewed_by_name ?? "",
+      formatDateTime(item.reviewed_at),
+      index % 2 === 0 ? "#FFFFFF" : "#F8FAFC",
+    ]);
+
+    const tableHeader = headers
+      .map(
+        (header) =>
+          `<th style="background:#1E3A8A;color:#FFFFFF;font-weight:700;border:1px solid #CBD5E1;padding:8px;text-align:left;white-space:nowrap;">${escapeHtml(header)}</th>`,
+      )
+      .join("");
+
+    const tableRows = rows
+      .map((row) => {
+        const rowColor = row[row.length - 1] as string;
+        const cells = row
+          .slice(0, -1)
+          .map(
+            (cell) =>
+              `<td style="border:1px solid #CBD5E1;padding:7px;background:${rowColor};vertical-align:top;">${escapeHtml(cell)}</td>`,
+          )
+          .join("");
+
+        return `<tr>${cells}</tr>`;
+      })
+      .join("");
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:x="urn:schemas-microsoft-com:office:excel"
+            xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>SkillAuth</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+        </head>
+        <body>
+          <table style="border-collapse:collapse;font-family:Calibri,Segoe UI,Arial,sans-serif;font-size:11pt;">
+            <tr>
+              <td colspan="${headers.length}"
+                  style="font-size:14pt;font-weight:700;padding:10px 8px;color:#0F172A;">
+                Skill Authorization Report
+              </td>
+            </tr>
+            <tr>
+              <td colspan="${headers.length}"
+                  style="padding:0 8px 10px 8px;color:#475569;">
+                Generated: ${escapeHtml(new Date().toLocaleString())}
+              </td>
+            </tr>
+            <tr>${tableHeader}</tr>
+            ${tableRows}
+          </table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelHtml], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateTag = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `skills-authorization-${dateTag}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   if (activeRole && activeRole !== "Admin") {
@@ -85,6 +214,21 @@ export default function SkillAuthorizationPage() {
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-lg">
+          <div className="mb-4 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={downloadExcel}
+              disabled={items.length === 0}
+              className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                items.length === 0
+                  ? "cursor-not-allowed bg-slate-400"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              Download Excel
+            </button>
+          </div>
+
           {loading ? (
             <p className="text-sm text-slate-500">Loading requests...</p>
           ) : (
@@ -125,7 +269,7 @@ export default function SkillAuthorizationPage() {
                       <td className="p-4">{item.actual_level}</td>
                       <td className="p-4">{item.gap}</td>
                       <td className="p-4">
-                        <div>{item.requested_by_name || item.emp_code}</div>
+                        <div>{item.requested_by_name || item.requested_by}</div>
                         <div className="text-xs text-slate-500">
                           {new Date(item.requested_at).toLocaleString()}
                         </div>
@@ -146,7 +290,7 @@ export default function SkillAuthorizationPage() {
                           <div className="mt-2 text-xs text-slate-500">
                             {item.reviewed_by_name}
                             {item.reviewed_at
-                              ? ` • ${new Date(item.reviewed_at).toLocaleString()}`
+                              ? ` | ${new Date(item.reviewed_at).toLocaleString()}`
                               : ""}
                           </div>
                         ) : null}

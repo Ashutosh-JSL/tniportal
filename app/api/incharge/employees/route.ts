@@ -2,19 +2,22 @@ import { NextResponse } from "next/server";
 import sql from "mssql";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
+import { getConnection } from "@/lib/dbConnect";
 
 /* ===================== DB CONFIG ===================== */
 
-const config = {
-  user: "sa",
-  password: "Jindal@pex2020",
-  server: "10.7.81.3",
-  database: "TNIP_NEW", // app DB (cross-db read allowed)
-  options: {
-    trustServerCertificate: true,
-    encrypt: false,
-  },
-};
+const pool = await getConnection();
+
+// const config = {
+//   user: "sa",
+//   password: "Jindal@pex2020",
+//   server: "10.7.81.3",
+//   database: "TNIP_NEW", // app DB (cross-db read allowed)
+//   options: {
+//     trustServerCertificate: true,
+//     encrypt: false,
+//   },
+// };
 
 async function requireUser() {
   const session = await getServerSession(authOptions);
@@ -24,6 +27,10 @@ async function requireUser() {
   }
 
   return session.user;
+}
+
+function getUserEmployeeCode(user: { employeeCode?: string; id?: string }) {
+  return String(user.employeeCode ?? user.id ?? "").trim();
 }
 
 /* ===================== GET ===================== */
@@ -45,26 +52,30 @@ export async function GET() {
       );
     }
 
+    const userEmployeeCode = getUserEmployeeCode(currentUser);
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "User employee code missing in session" },
+        { status: 401 }
+      );
+    }
+
     // const { searchParams } = new URL(req.url);
     // const code = searchParams.get("code");
 
-    const pool = await sql.connect(config);
 
     /* ---------- FETCH BY EMPLOYEE CODE (GLOBAL DB) ---------- */
     // if (code) {
       const result = await pool
         .request()
-        // .input("code", sql.VarChar(20), code)
+        .input("UserEmployeeCode", sql.VarChar(20), userEmployeeCode)
         .query(`
-          Select emp_code,emp_name from employees 
+          SELECT emp_code, emp_name
+          FROM dbo.Employees
+          WHERE IsActive = 1
+            AND (CrBy = @UserEmployeeCode OR UpBy = @UserEmployeeCode)
+          ORDER BY emp_name
         `);
-
-      if (result.recordset.length === 0) {
-        return NextResponse.json(
-          { error: "Employee not found" },
-          { status: 404 }
-        );
-      }
       
       return NextResponse.json(result.recordset); // ✅ SINGLE OBJECT
     // }
@@ -115,7 +126,15 @@ export async function POST(req: Request) {
       functional_area,
     } = body;
 
-    const pool = await sql.connect(config);
+    const userEmployeeCode = getUserEmployeeCode(currentUser);
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "User employee code missing in session" },
+        { status: 401 }
+      );
+    }
+
+    // const pool = await sql.connect(config);
 
     await pool
       .request()
@@ -124,15 +143,30 @@ export async function POST(req: Request) {
       .input("designation", sql.VarChar(100), designation)
       .input("department", sql.VarChar(100), department)
       .input("functional_area", sql.VarChar(150), functional_area)
+      .input("CrBy", sql.VarChar(20), userEmployeeCode)
+      .input("UpBy", sql.VarChar(20), userEmployeeCode)
       .query(`
-        IF NOT EXISTS (
+        IF EXISTS (
           SELECT 1 FROM dbo.Employees WHERE emp_code = @emp_code
         )
         BEGIN
+          UPDATE dbo.Employees
+          SET
+            emp_name = @emp_name,
+            designation = @designation,
+            department = @department,
+            functional_area = @functional_area,
+            IsActive = 1,
+            UpBy = @UpBy,
+            UpDt = GETDATE()
+          WHERE emp_code = @emp_code
+        END
+        ELSE
+        BEGIN
           INSERT INTO dbo.Employees
-          (emp_code, emp_name, designation, department, functional_area, status)
+          (emp_code, emp_name, designation, department, functional_area, IsActive, CrBy, CrDt, UpBy, UpDt)
           VALUES
-          (@emp_code, @emp_name, @designation, @department, @functional_area, 1)
+          (@emp_code, @emp_name, @designation, @department, @functional_area, 1, @CrBy, GETDATE(), @UpBy, GETDATE())
         END
       `);
 
@@ -168,7 +202,15 @@ export async function PUT(req: Request) {
       functional_area,
     } = body;
 
-    const pool = await sql.connect(config);
+    const userEmployeeCode = getUserEmployeeCode(currentUser);
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "User employee code missing in session" },
+        { status: 401 }
+      );
+    }
+
+    // const pool = await sql.connect(config);
 
     await pool
       .request()
@@ -177,13 +219,16 @@ export async function PUT(req: Request) {
       .input("designation", sql.VarChar(100), designation)
       .input("department", sql.VarChar(100), department)
       .input("functional_area", sql.VarChar(150), functional_area)
+      .input("UpBy", sql.VarChar(20), userEmployeeCode)
       .query(`
         UPDATE dbo.Employees
         SET
           emp_name = @emp_name,
           designation = @designation,
           department = @department,
-          functional_area = @functional_area
+          functional_area = @functional_area,
+          UpBy = @UpBy,
+          UpDt = GETDATE()
         WHERE emp_code = @emp_code
       `);
 
@@ -213,6 +258,14 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const emp_code = searchParams.get("emp_code");
 
+    const userEmployeeCode = getUserEmployeeCode(currentUser);
+    if (!userEmployeeCode) {
+      return NextResponse.json(
+        { error: "User employee code missing in session" },
+        { status: 401 }
+      );
+    }
+
     if (!emp_code) {
       return NextResponse.json(
         { error: "Employee code required" },
@@ -220,14 +273,18 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const pool = await sql.connect(config);
+    // const pool = await sql.connect(config);
 
     await pool
       .request()
       .input("emp_code", sql.VarChar(20), emp_code)
+      .input("UpBy", sql.VarChar(20), userEmployeeCode)
       .query(`
         UPDATE dbo.Employees
-        SET status = 0
+        SET
+          IsActive = 0,
+          UpBy = @UpBy,
+          UpDt = GETDATE()
         WHERE emp_code = @emp_code
       `);
 

@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
 import sql from "mssql";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/options";
+
+type SessionUser = {
+  id?: string;
+  employeeCode?: string;
+};
+
+async function getSessionUserId() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser | undefined;
+  return user?.employeeCode ?? user?.id ?? null;
+}
 
 const config = {
   user: "sa",
-  password: "Jindal@pex2020",
-  server: "10.7.81.3",
+  password: "Ashusolid@1234",
+  server: "JSLLAP0727",
   database: "TNIP_NEW",
   options: {
     trustServerCertificate: true,
@@ -15,6 +28,12 @@ const config = {
 /* ===================== GET ===================== */
 export async function GET() {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const pool = await sql.connect(config);
 
     const skills = await pool.request().query(`
@@ -22,18 +41,21 @@ export async function GET() {
       FROM dbo.Skills
     `);
 
-    const employees = await pool.request().query(`
-  SELECT
-    
-    emp_code,
-    emp_name
-  FROM dbo.Employees
-  WHERE status = 1
-  ORDER BY emp_name
-`);
+    const employees = await pool.request()
+    .input("user_id", sql.VarChar(20), userId)
+    .query(`
+      SELECT
+        emp_code,
+        emp_name
+      FROM dbo.Employees
+      WHERE (IsActive = 1 OR IsActive IS NULL)
+        AND (CrBy = @user_id OR UpBy = @user_id)
+      ORDER BY emp_name
+    `);
 
-
-    const records = await pool.request().query(`
+    const records = await pool.request()
+    .input("crby", sql.VarChar(20), userId)
+    .query(`
       SELECT
         MAX(TPS.id) AS id,
         E.emp_code,
@@ -47,6 +69,7 @@ export async function GET() {
         ON TPS.skill_id = S.skill_id
       LEFT JOIN dbo.Employees E
         ON TPS.employee_id = E.emp_code
+      WHERE TPS.crby = @crby
       GROUP BY
         E.emp_code,
         E.emp_name,
@@ -78,8 +101,13 @@ export async function GET() {
 /* ===================== POST ===================== */
 export async function POST(req: Request) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const {
-      
       skill_id,
       emp_code,
       desired_level,
@@ -94,6 +122,7 @@ export async function POST(req: Request) {
       .input("emp_code", sql.VarChar(20), emp_code)
       .input("desired_level", sql.Int, desired_level)
       .input("actual_level", sql.Int, actual_level)
+      .input("crby", sql.VarChar(20), userId)
       .query(`
         INSERT INTO dbo.TrainingPlanSkills
         (
@@ -101,7 +130,8 @@ export async function POST(req: Request) {
           skill_id,
           employee_id,
           desired_level,
-          actual_level
+          actual_level,
+          crby
         )
         VALUES
         (
@@ -109,7 +139,8 @@ export async function POST(req: Request) {
           @skill_id,
           @emp_code,
           @desired_level,
-          @actual_level
+          @actual_level,
+          @crby
         )
       `);
 
@@ -123,6 +154,12 @@ export async function POST(req: Request) {
 /* ===================== PUT (UPDATE) ===================== */
 export async function PUT(req: Request) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id, desired_level, actual_level } = await req.json();
 
     const pool = await sql.connect(config);
@@ -147,12 +184,15 @@ export async function PUT(req: Request) {
   }
 }
 
-
-
-
 /* ===================== DELETE ===================== */
 export async function DELETE(req: Request) {
   try {
+    const userId = await getSessionUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await req.json();
 
     const pool = await sql.connect(config);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface Skill {
   skill_id: number;
@@ -50,18 +50,20 @@ export default function TrainingPlanSkillPage() {
     actual_level: "",
   });
 
-  const loadAll = async () => {
-    const [mappingRes, authorizationRes] = await Promise.all([
-      fetch("/api/incharge/training-plan-skill-mapping", {
-        cache: "no-store",
-      }),
-      fetch("/api/incharge/skills-authorization", {
-        cache: "no-store",
-      }),
-    ]);
+  const loadAll = useCallback(async () => {
+    const mappingRes = await fetch("/api/incharge/training-plan-skill-mapping", {
+      cache: "no-store",
+    });
 
     const mappingData = await mappingRes.json();
-    const authorizationData = await authorizationRes.json();
+
+    const shouldLoadAuthorization =
+      activeRole === "Incharge" || activeRole === "Admin";
+    const authorizationData = shouldLoadAuthorization
+      ? await fetch("/api/incharge/skills-authorization", {
+          cache: "no-store",
+        }).then((res) => res.json())
+      : [];
 
     setSkills(mappingData.skills ?? []);
     setEmployees(mappingData.employees ?? []);
@@ -78,7 +80,7 @@ export default function TrainingPlanSkillPage() {
       : [];
 
     setSubmittedRecordIds(pendingIds);
-  };
+  }, [activeRole]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -86,7 +88,7 @@ export default function TrainingPlanSkillPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [loadAll]);
 
   const startEdit = (record: RecordItem) => {
     setEditingId(record.id);

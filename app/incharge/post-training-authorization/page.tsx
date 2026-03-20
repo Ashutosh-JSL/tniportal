@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 
@@ -72,6 +72,153 @@ export default function PostTrainingAuthorizationPage() {
     void loadItems();
   };
 
+  const downloadExcel = () => {
+    if (items.length === 0) {
+      alert("No data available to download");
+      return;
+    }
+
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const formatDateOnly = (value: string | null) =>
+      value ? value.split("T")[0] : "";
+
+    const formatDateTime = (value: string | null) =>
+      value ? new Date(value).toLocaleString() : "";
+
+    const headers = [
+      "Employee Code",
+      "Employee Name",
+      "Plan",
+      "Year",
+      "Responsible Person",
+      "Location",
+      "Target Date",
+      "Completion Date",
+      "Desired",
+      "Actual",
+      "Gap",
+      "Gap Fulfilled",
+      "Key Learnings",
+      "Evidence File",
+      "Requested By Code",
+      "Requested By Name",
+      "Requested At",
+      "Status",
+      "Reviewed By Name",
+      "Reviewed At",
+    ];
+
+    const rows = items.map((item, index) => [
+      item.emp_code,
+      item.emp_name,
+      item.plan_desc,
+      item.year ?? "",
+      item.responsible_person ?? "",
+      item.training_location ?? "",
+      formatDateOnly(item.target_date),
+      formatDateOnly(item.Completion_date),
+      item.effectiveness_desired ?? "",
+      item.effectiveness_actual ?? "",
+      item.effectiveness_gap ?? "",
+      item.gap_fulfilled ? "Yes" : "No",
+      item.key_learnings ?? "",
+      item.evidence_file ?? "",
+      item.requested_by,
+      item.requested_by_name ?? "",
+      formatDateTime(item.requested_at),
+      item.status,
+      item.reviewed_by_name ?? "",
+      formatDateTime(item.reviewed_at),
+      index % 2 === 0 ? "#FFFFFF" : "#F8FAFC",
+    ]);
+
+    const tableHeader = headers
+      .map(
+        (header) =>
+          `<th style="background:#1E3A8A;color:#FFFFFF;font-weight:700;border:1px solid #CBD5E1;padding:8px;text-align:left;white-space:nowrap;">${escapeHtml(header)}</th>`,
+      )
+      .join("");
+
+    const tableRows = rows
+      .map((row) => {
+        const rowColor = row[row.length - 1] as string;
+        const cells = row
+          .slice(0, -1)
+          .map(
+            (cell) =>
+              `<td style="border:1px solid #CBD5E1;padding:7px;background:${rowColor};vertical-align:top;">${escapeHtml(cell)}</td>`,
+          )
+          .join("");
+
+        return `<tr>${cells}</tr>`;
+      })
+      .join("");
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:x="urn:schemas-microsoft-com:office:excel"
+            xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>PostTrainingAuth</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+        </head>
+        <body>
+          <table style="border-collapse:collapse;font-family:Calibri,Segoe UI,Arial,sans-serif;font-size:11pt;">
+            <tr>
+              <td colspan="${headers.length}"
+                  style="font-size:14pt;font-weight:700;padding:10px 8px;color:#0F172A;">
+                Post-Training Authorization Report
+              </td>
+            </tr>
+            <tr>
+              <td colspan="${headers.length}"
+                  style="padding:0 8px 10px 8px;color:#475569;">
+                Generated: ${escapeHtml(new Date().toLocaleString())}
+              </td>
+            </tr>
+            <tr>${tableHeader}</tr>
+            ${tableRows}
+          </table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelHtml], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateTag = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `post-training-authorization-${dateTag}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (activeRole && activeRole !== "Admin") {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
@@ -94,6 +241,21 @@ export default function PostTrainingAuthorizationPage() {
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-lg">
+          <div className="mb-4 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={downloadExcel}
+              disabled={items.length === 0}
+              className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                items.length === 0
+                  ? "cursor-not-allowed bg-slate-400"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              Download Excel
+            </button>
+          </div>
+
           {loading ? (
             <p className="text-sm text-slate-500">Loading requests...</p>
           ) : (
