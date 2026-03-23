@@ -253,7 +253,7 @@ export default function Navbar() {
                   <span className="max-w-36 truncate text-sm font-medium text-slate-700">{username}</span>
                   <button
                     onClick={handleLogout}
-                    className="rounded-lg border border-cyan-100/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all duration-200 hover:bg-cyan-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+                    className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-all duration-200 hover:-translate-y-0.5 hover:scale-105 hover:border-rose-700 hover:bg-rose-700 hover:text-white hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2"
                   >
                     Logout
                   </button>

@@ -11,6 +11,7 @@ interface Assigned {
   RAID: number;
   UserID: string;
   Full_Name?: string;
+  Role_ID?: number | null;
   Role_Desc: string;
   CrDt: string;
 }
@@ -18,22 +19,53 @@ interface Assigned {
 export default function RoleAuthPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [assigned, setAssigned] = useState<Assigned[]>([]);
+  const [assignedError, setAssignedError] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
   const [roleId, setRoleId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingRaid, setEditingRaid] = useState<number | null>(null);
+  const [editingRoleId, setEditingRoleId] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingRaid, setDeletingRaid] = useState<number | null>(null);
 
   /* LOAD ROLE MASTER */
   const loadRoles = async () => {
-    const res = await fetch("/api/incharge/roles");
-    const data = await res.json();
-    setRoles(data);
+    try {
+      const res = await fetch("/api/incharge/roles", { cache: "no-store" });
+      const data = await res.json().catch(() => []);
+      setRoles(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load roles:", error);
+      setRoles([]);
+    }
   };
 
   /* LOAD ASSIGNED ROLES */
   const loadAssigned = async () => {
-    const res = await fetch("/api/incharge/role-auth");
-    const data = await res.json();
-    setAssigned(data);
+    try {
+      const res = await fetch("/api/incharge/role-auth", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message =
+          (data && typeof data === "object" && "error" in data && typeof data.error === "string" && data.error) ||
+          "Failed to load assigned roles";
+        setAssigned([]);
+        setAssignedError(message);
+        return;
+      }
+
+      const normalizedData = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+      setAssigned(normalizedData);
+      setAssignedError(null);
+    } catch (error) {
+      console.error("Failed to load assigned roles:", error);
+      setAssigned([]);
+      setAssignedError("Failed to load assigned roles");
+    }
   };
 
   useEffect(() => {
@@ -63,13 +95,82 @@ export default function RoleAuthPage() {
         alert(data?.message ?? "Role assigned successfully");
         setUserId("");
         setRoleId("");
-        loadAssigned();
+        await loadAssigned();
         return;
       }
 
       alert(data?.error ?? "Failed to assign role");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const startEdit = (row: Assigned) => {
+    setEditingRaid(row.RAID);
+    setEditingRoleId(row.Role_ID ? String(row.Role_ID) : "");
+  };
+
+  const cancelEdit = () => {
+    setEditingRaid(null);
+    setEditingRoleId("");
+  };
+
+  const saveEdit = async (raid: number) => {
+    if (isUpdating) return;
+
+    const nextRoleId = Number(editingRoleId);
+    if (!Number.isFinite(nextRoleId) || !nextRoleId) {
+      alert("Please select a valid role");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const res = await fetch("/api/incharge/role-auth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raid, roleId: nextRoleId }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        alert(data?.error ?? "Failed to update role assignment");
+        return;
+      }
+
+      alert(data?.message ?? "Role assignment updated successfully");
+      cancelEdit();
+      await loadAssigned();
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const deleteAssignment = async (raid: number) => {
+    if (deletingRaid === raid) return;
+    if (!confirm("Delete this role assignment?")) return;
+
+    setDeletingRaid(raid);
+    try {
+      const res = await fetch("/api/incharge/role-auth", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raid }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        alert(data?.error ?? "Failed to delete role assignment");
+        return;
+      }
+
+      alert(data?.message ?? "Role assignment deleted successfully");
+      if (editingRaid === raid) {
+        cancelEdit();
+      }
+      await loadAssigned();
+    } finally {
+      setDeletingRaid(null);
     }
   };
 
@@ -148,6 +249,11 @@ export default function RoleAuthPage() {
               Total: {assigned.length}
             </span>
           </div>
+          {assignedError ? (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+              {assignedError}
+            </div>
+          ) : null}
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
             <table className="min-w-full divide-y divide-slate-200">
@@ -157,6 +263,7 @@ export default function RoleAuthPage() {
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Employee Name</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Role</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Created</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Action</th>
                 </tr>
               </thead>
 
@@ -167,16 +274,70 @@ export default function RoleAuthPage() {
                       <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-700">{a.UserID}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{a.Full_Name || "-"}</td>
                       <td className="px-4 py-3 text-sm">
-                        <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
-                          {a.Role_Desc}
-                        </span>
+                        {editingRaid === a.RAID ? (
+                          <select
+                            value={editingRoleId}
+                            onChange={(e) => setEditingRoleId(e.target.value)}
+                            className="w-full min-w-[170px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                          >
+                            <option value="">Select Role</option>
+                            {roles.map((r) => (
+                              <option key={r.Role_ID} value={r.Role_ID}>
+                                {r.Role_Desc}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
+                            {a.Role_Desc}
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">{new Date(a.CrDt).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-center">
+                        {editingRaid === a.RAID ? (
+                          <div className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => saveEdit(a.RAID)}
+                              disabled={isUpdating}
+                              className="rounded bg-green-600 px-3 py-1 text-white disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              className="rounded bg-gray-500 px-3 py-1 text-white"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => startEdit(a)}
+                              className="rounded bg-blue-600 px-3 py-1 text-white"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteAssignment(a.RAID)}
+                              disabled={deletingRaid === a.RAID}
+                              className="rounded bg-red-600 px-3 py-1 text-white disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {deletingRaid === a.RAID ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
+                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
                       No roles assigned yet.
                     </td>
                   </tr>

@@ -10,6 +10,7 @@ const ROLE_ASSIGNMENT_BCC = "ashutosh.agrawal@jindalstainless.com";
 type RoleAuthPayload = {
   userId?: string | number;
   roleId?: number;
+  raid?: number;
 };
 
 type UserWithRoleRow = {
@@ -54,13 +55,14 @@ export async function GET() {
       SELECT 
         ra.RAID,
         ra.UserID,
-		    DEM.Full_Name,
+        e.Employee_Name AS Full_Name,
         ra.Role_ID,
         rm.Role_Desc,
         ra.CrDt
       FROM Role_Auth ra
       LEFT JOIN Role_Master rm ON ra.Role_ID = rm.Role_ID
-	  JOIN Employee_DB.dbo.Darwain_Employee_Master DEM ON ra.UserID = DEM.Employee_Id
+      LEFT JOIN [Employee_DB].[dbo].[Employee_Master] e
+        ON e.Employee_Code COLLATE DATABASE_DEFAULT = CAST(ra.UserID AS NVARCHAR(50)) COLLATE DATABASE_DEFAULT
       ORDER BY ra.RAID DESC
     `);
 
@@ -226,6 +228,130 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Insert failed" },
       { status: 500 }
+    );
+  }
+}
+
+/* ================= UPDATE ROLE ASSIGNMENT ================= */
+export async function PUT(req: NextRequest) {
+  try {
+    const payload = (await req.json()) as RoleAuthPayload;
+    const raid = Number(payload.raid);
+    const roleId = Number(payload.roleId);
+
+    if (!Number.isFinite(raid) || !Number.isFinite(roleId)) {
+      return NextResponse.json(
+        { error: "Valid raid and roleId are required" },
+        { status: 400 },
+      );
+    }
+
+    const pool = await getConnection();
+
+    const assignmentResult = await pool
+      .request()
+      .input("raid", sql.Int, raid)
+      .query(`
+        SELECT TOP 1 RAID, UserID, Role_ID
+        FROM Role_Auth
+        WHERE RAID = @raid
+      `);
+
+    const assignment = assignmentResult.recordset[0] as
+      | { RAID: number; UserID: string | number; Role_ID: number }
+      | undefined;
+
+    if (!assignment) {
+      return NextResponse.json(
+        { error: "Role assignment not found" },
+        { status: 404 },
+      );
+    }
+
+    const userId = String(assignment.UserID ?? "").trim();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Invalid role assignment user" },
+        { status: 400 },
+      );
+    }
+
+    const duplicateResult = await pool
+      .request()
+      .input("raid", sql.Int, raid)
+      .input("userId", sql.NVarChar(50), userId)
+      .input("roleId", sql.Int, roleId)
+      .query(`
+        SELECT TOP 1 RAID
+        FROM Role_Auth
+        WHERE UserID = @userId
+          AND Role_ID = @roleId
+          AND RAID <> @raid
+      `);
+
+    if (duplicateResult.recordset.length > 0) {
+      return NextResponse.json(
+        { error: "This role is already assigned to the employee" },
+        { status: 409 },
+      );
+    }
+
+    await pool
+      .request()
+      .input("raid", sql.Int, raid)
+      .input("roleId", sql.Int, roleId)
+      .query(`
+        UPDATE Role_Auth
+        SET Role_ID = @roleId
+        WHERE RAID = @raid
+      `);
+
+    return NextResponse.json({ message: "Role assignment updated successfully" });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Update failed" },
+      { status: 500 },
+    );
+  }
+}
+
+/* ================= DELETE ROLE ASSIGNMENT ================= */
+export async function DELETE(req: NextRequest) {
+  try {
+    const payload = (await req.json()) as RoleAuthPayload;
+    const raid = Number(payload.raid);
+
+    if (!Number.isFinite(raid)) {
+      return NextResponse.json(
+        { error: "Valid raid is required" },
+        { status: 400 },
+      );
+    }
+
+    const pool = await getConnection();
+
+    const deleteResult = await pool
+      .request()
+      .input("raid", sql.Int, raid)
+      .query(`
+        DELETE FROM Role_Auth
+        WHERE RAID = @raid
+      `);
+
+    if (!deleteResult.rowsAffected[0]) {
+      return NextResponse.json(
+        { error: "Role assignment not found" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ message: "Role assignment deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Delete failed" },
+      { status: 500 },
     );
   }
 }

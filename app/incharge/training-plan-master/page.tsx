@@ -104,86 +104,126 @@ export default function TrainingPlanMasterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
-      <div className="mx-auto max-w-5xl rounded-xl bg-white p-8 shadow">
-        <h1 className="mb-6 text-2xl font-semibold">Training Plan Master</h1>
-
-        <form onSubmit={submit} className="mb-8 grid grid-cols-1 gap-4">
-          <input
-            required
-            placeholder="Plan Heading"
-            className="rounded-lg border px-4 py-2"
-            value={planHeading}
-            onChange={(e) => setPlanHeading(e.target.value)}
-          />
-
-          <input
-            placeholder="Plan Description"
-            className="rounded-lg border px-4 py-2"
-            value={planDesc}
-            onChange={(e) => setPlanDesc(e.target.value)}
-          />
-
-          <div className="flex gap-3">
-            <button className="rounded-lg bg-indigo-600 px-5 py-2 text-white">
-              {editingPlanId ? "Update Plan" : "Add Plan"}
-            </button>
-            {editingPlanId ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="rounded-lg bg-slate-500 px-5 py-2 text-white"
-              >
-                Cancel
-              </button>
-            ) : null}
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="rounded-3xl border border-white/70 bg-white/70 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-800">Training Plan Master</h1>
+              <p className="mt-1 text-sm text-slate-600">Create and maintain training plan templates.</p>
+            </div>
+            <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
+              Plan Management
+            </div>
           </div>
-        </form>
 
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-3 text-left">Plan Heading</th>
-              <th className="p-3 text-left">Plan Description</th>
-              <th className="p-3 text-left">Created</th>
-              <th className="p-3 text-center">Action</th>
-            </tr>
-          </thead>
+          <form onSubmit={submit} className="grid gap-4 md:grid-cols-12">
+            <div className="md:col-span-4">
+              <label htmlFor="planHeading" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Plan Heading
+              </label>
+              <input
+                id="planHeading"
+                required
+                placeholder="Enter plan heading"
+                className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                value={planHeading}
+                onChange={(e) => setPlanHeading(e.target.value)}
+              />
+            </div>
 
-          <tbody>
-            {plans.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="p-4 text-center text-slate-500">
-                  No plans found.
-                </td>
-              </tr>
-            ) : (
-              plans.map((plan) => (
-                <tr key={plan.plan_master_id} className="border-b">
-                  <td className="p-3">{plan.plan_Heading}</td>
-                  <td className="p-3">{plan.plan_Desc}</td>
-                  <td className="p-3">{new Date(plan.created_at).toLocaleDateString()}</td>
-                  <td className="space-x-2 p-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(plan)}
-                      className="rounded bg-blue-600 px-3 py-1 text-white"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deletePlan(plan.plan_master_id)}
-                      className="rounded bg-red-600 px-3 py-1 text-white"
-                    >
-                      Delete
-                    </button>
-                  </td>
+            <div className="md:col-span-5">
+              <label htmlFor="planDesc" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Plan Description
+              </label>
+              <input
+                id="planDesc"
+                placeholder="Enter plan description"
+                className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                value={planDesc}
+                onChange={(e) => setPlanDesc(e.target.value)}
+              />
+            </div>
+
+            <div className="md:col-span-3 md:self-end">
+              <button className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(37,99,235,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(37,99,235,0.38)]">
+                {editingPlanId ? "Update Plan" : "Add Plan"}
+              </button>
+            </div>
+
+            {editingPlanId ? (
+              <div className="md:col-span-3 md:col-start-10">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+          </form>
+        </div>
+
+        <div className="rounded-3xl border border-white/75 bg-white/75 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-bold tracking-tight text-slate-800">Training Plans</h2>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              Total: {plans.length}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Plan Heading</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Plan Description</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Created</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Action</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {plans.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
+                      No plans found.
+                    </td>
+                  </tr>
+                ) : (
+                  plans.map((plan) => (
+                    <tr key={plan.plan_master_id} className="transition hover:bg-cyan-50/55">
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-700">{plan.plan_Heading}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{plan.plan_Desc || "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                        {new Date(plan.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(plan)}
+                            className="rounded bg-blue-600 px-3 py-1 text-white"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deletePlan(plan.plan_master_id)}
+                            className="rounded bg-red-600 px-3 py-1 text-white"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

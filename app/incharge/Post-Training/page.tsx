@@ -281,19 +281,30 @@ export default function PostTrainingPage() {
     Number(formData.effectiveness_actual || 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 p-8">
-      <div className="mt-10 w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
-        <h2 className="mb-6 border-b pb-3 text-2xl font-semibold text-gray-800">
-          Post-Training
-        </h2>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="rounded-3xl border border-white/70 bg-white/70 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-800">
+                Post-Training
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Capture post-training outcomes and evidence for employees.
+              </p>
+            </div>
+            <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
+              Post-Training
+            </div>
+          </div>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Employee
             </label>
             <select
-              className="w-full rounded-lg border border-gray-300 px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.employee_id}
               onChange={async (e) => {
                 const employeeId = e.target.value;
@@ -322,11 +333,11 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Plan Description
             </label>
             <select
-              className="w-full rounded-lg border border-gray-300 px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.plan_desc}
               onChange={(e) => {
                 const selectedPlan = e.target.value;
@@ -356,11 +367,11 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Year
             </label>
             <input
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.year}
               onChange={(e) =>
                 setFormData({ ...formData, year: e.target.value })
@@ -369,11 +380,11 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Responsible Person
             </label>
             <input
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.responsible_person}
               onChange={(e) =>
                 setFormData({
@@ -385,12 +396,12 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Target Date
             </label>
             <input
               type="date"
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.target_date}
               onChange={(e) =>
                 setFormData({ ...formData, target_date: e.target.value })
@@ -399,12 +410,12 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Completion Date
             </label>
             <input
               type="date"
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.Completion_date}
               onChange={(e) =>
                 setFormData({ ...formData, Completion_date: e.target.value })
@@ -413,11 +424,11 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Training Location
             </label>
             <select
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.training_location}
               onChange={(e) =>
                 setFormData({
@@ -434,12 +445,12 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Effectiveness Desired
             </label>
             <input
               type="number"
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.effectiveness_desired}
               onChange={(e) =>
                 setFormData({
@@ -451,12 +462,12 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Effectiveness Actual
             </label>
             <input
               type="number"
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.effectiveness_actual}
               onChange={(e) =>
                 setFormData({
@@ -468,13 +479,13 @@ export default function PostTrainingPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Effectiveness Gap
             </label>
             <input
               type="number"
               readOnly
-              className="w-full rounded border bg-gray-100 px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-slate-100/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm"
               value={calculatedGap}
             />
           </div>
@@ -490,17 +501,17 @@ export default function PostTrainingPage() {
                 })
               }
             />
-            <label className="text-sm font-medium text-gray-600">
+            <label className="text-sm font-semibold text-slate-700">
               Gap Fulfilled
             </label>
           </div>
 
           <div className="col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Key Learnings
             </label>
             <textarea
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.key_learnings}
               onChange={(e) =>
                 setFormData({
@@ -512,11 +523,12 @@ export default function PostTrainingPage() {
           </div>
 
           <div className="col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Upload Evidence File
             </label>
             <input
               type="file"
+              className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               onChange={(e) =>
                 setFormData({
                   ...formData,
@@ -527,51 +539,56 @@ export default function PostTrainingPage() {
           </div>
 
           <div className="col-span-2 text-right">
-            <button className="rounded bg-indigo-600 px-6 py-2 text-white">
+            <button className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(37,99,235,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(37,99,235,0.38)]">
               Save Training Plan
             </button>
           </div>
         </form>
       </div>
 
-      <div className="mt-10 w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between border-b pb-2">
-          <h2 className="text-xl font-semibold text-gray-800">
+      <div className="rounded-3xl border border-white/75 bg-white/75 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold tracking-tight text-slate-800">
             Post-Training List
           </h2>
-          {activeRole === "Incharge" ? (
-            <button
-              type="button"
-              onClick={submitSelectedToAdmin}
-              className="rounded bg-emerald-600 px-5 py-2 text-sm font-medium text-white"
-            >
-              Send Checked Rows To Admin Authorization
-            </button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              Total: {plans.length}
+            </span>
+            {activeRole === "Incharge" ? (
+              <button
+                type="button"
+                onClick={submitSelectedToAdmin}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Send Checked Rows To Admin Authorization
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        <div className="w-full overflow-x-auto">
+        <div className="w-full overflow-x-auto rounded-2xl border border-slate-200/80">
           <table className="min-w-full table-auto text-sm">
-            <thead>
-              <tr className="bg-indigo-600 text-white">
+            <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
+              <tr className="text-slate-700">
                 {activeRole === "Incharge" ? (
-                  <th className="p-3">Select</th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wider">Select</th>
                 ) : null}
-                <th className="p-3">Employee</th>
-                <th className="p-3">Plan</th>
-                <th className="p-3">Year</th>
-                <th className="p-3">Responsible</th>
-                <th className="p-3">Location</th>
-                <th className="p-3">Desired</th>
-                <th className="p-3">Actual</th>
-                <th className="p-3">Gap</th>
-                <th className="p-3">Fulfilled</th>
-                <th className="p-3">Key Learnings</th>
-                <th className="p-3">Evidence</th>
-                <th className="p-3">Target Date</th>
-                <th className="p-3">Completion Date</th>
-                <th className="p-3">Created</th>
-                <th className="p-3">Action</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Employee</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Plan</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Year</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Responsible</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Location</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Desired</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Actual</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Gap</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Fulfilled</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Key Learnings</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Evidence</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Target Date</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Completion Date</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Created</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Action</th>
               </tr>
             </thead>
 
@@ -584,7 +601,7 @@ export default function PostTrainingPage() {
                 return (
                   <tr
                     key={plan.row_key}
-                    className="border-b text-center transition hover:bg-gray-50"
+                    className="border-b text-center transition hover:bg-cyan-50/55"
                   >
                     {activeRole === "Incharge" ? (
                       <td className="p-2">
@@ -786,7 +803,7 @@ export default function PostTrainingPage() {
                           href={`/evidence/${plan.evidence_file}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-indigo-600 hover:underline"
+                          className="text-blue-600 hover:underline"
                         >
                           View
                         </a>
@@ -833,9 +850,9 @@ export default function PostTrainingPage() {
 
                     <td className="p-2">{plan.created_at?.split("T")[0]}</td>
 
-                    <td className="p-2 space-x-2">
+                    <td className="p-2">
                       {editingId === plan.row_key ? (
-                        <>
+                        <div className="inline-flex items-center gap-2 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => saveEdit(plan.row_key)}
@@ -850,9 +867,9 @@ export default function PostTrainingPage() {
                           >
                             Cancel
                           </button>
-                        </>
+                        </div>
                       ) : (
-                        <>
+                        <div className="inline-flex items-center gap-2 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => startEdit(plan)}
@@ -867,7 +884,7 @@ export default function PostTrainingPage() {
                           >
                             Delete
                           </button>
-                        </>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -877,6 +894,7 @@ export default function PostTrainingPage() {
           </table>
         </div>
       </div>
+    </div>
     </div>
   );
 }

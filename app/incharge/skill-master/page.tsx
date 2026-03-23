@@ -92,71 +92,110 @@ export default function SkillMasterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
-      <div className="mx-auto max-w-4xl rounded-xl bg-white p-8 shadow">
-        <h1 className="mb-6 text-2xl font-semibold">Skill Master</h1>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="rounded-3xl border border-white/70 bg-white/70 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-800">Skill Master</h1>
+              <p className="mt-1 text-sm text-slate-600">Add and maintain your training skill catalog.</p>
+            </div>
+            <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
+              Skill Management
+            </div>
+          </div>
 
-        <form onSubmit={submit} className="mb-8 flex gap-4">
-          <input
-            required
-            placeholder="Skill Name"
-            className="flex-1 rounded-lg border px-4 py-2"
-            value={skillName}
-            onChange={(e) => setSkillName(e.target.value)}
-          />
-          <button className="rounded-lg bg-emerald-600 px-6 text-white">
-            {editingSkillId ? "Update" : "Add"}
-          </button>
-          {editingSkillId ? (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="rounded-lg bg-slate-500 px-6 text-white"
-            >
-              Cancel
-            </button>
-          ) : null}
-        </form>
+          <form onSubmit={submit} className="grid gap-4 md:grid-cols-12">
+            <div className="md:col-span-8">
+              <label htmlFor="skillName" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Skill Name
+              </label>
+              <input
+                id="skillName"
+                required
+                placeholder="Enter skill name"
+                className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                value={skillName}
+                onChange={(e) => setSkillName(e.target.value)}
+              />
+            </div>
 
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-3 text-left">Skill Name</th>
-              <th className="p-3 text-center">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {skills.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="p-4 text-center text-slate-500">
-                  No skills found.
-                </td>
-              </tr>
-            ) : (
-              skills.map((skill) => (
-                <tr key={skill.skill_id} className="border-b">
-                  <td className="p-3">{skill.skill_name}</td>
-                  <td className="space-x-2 p-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(skill)}
-                      className="rounded bg-blue-600 px-3 py-1 text-white"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteSkill(skill.skill_id)}
-                      className="rounded bg-red-600 px-3 py-1 text-white"
-                    >
-                      Delete
-                    </button>
-                  </td>
+            <div className="md:col-span-2 md:self-end">
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(37,99,235,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(37,99,235,0.38)]"
+              >
+                {editingSkillId ? "Update" : "Add"}
+              </button>
+            </div>
+
+            {editingSkillId ? (
+              <div className="md:col-span-2 md:self-end">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+          </form>
+        </div>
+
+        <div className="rounded-3xl border border-white/75 bg-white/75 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-bold tracking-tight text-slate-800">Skills List</h2>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              Total: {skills.length}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Skill Name</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Action</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {skills.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-10 text-center text-sm text-slate-500">
+                      No skills found.
+                    </td>
+                  </tr>
+                ) : (
+                  skills.map((skill) => (
+                    <tr key={skill.skill_id} className="transition hover:bg-cyan-50/55">
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-700">{skill.skill_name}</td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(skill)}
+                            className="rounded bg-blue-600 px-3 py-1 text-white"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSkill(skill.skill_id)}
+                            className="rounded bg-red-600 px-3 py-1 text-white"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

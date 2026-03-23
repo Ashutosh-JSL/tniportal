@@ -200,140 +200,192 @@ export default function TrainingPlanAuthorizationPage() {
 
   if (activeRole && activeRole !== "Admin") {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
-        This page is only available for the Admin role.
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
+        <div className="mx-auto max-w-4xl">
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900 shadow-[0_18px_40px_rgba(15,23,42,0.08)] sm:p-8">
+            This page is only available for the Admin role.
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 py-10">
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="mb-8 rounded-2xl bg-white p-8 shadow-lg">
-          <h1 className="text-2xl font-semibold text-slate-800">
-            Training Plan Authorization
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Pending training plans submitted by incharge users will appear here
-            for admin review.
-          </p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="rounded-3xl border border-white/70 bg-white/70 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-800">
+                Training Plan Authorization
+              </h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Pending training plans submitted by incharge users for admin
+                review.
+              </p>
+            </div>
+            <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
+              Admin Review
+            </div>
+          </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-lg">
-          <div className="mb-4 flex items-center justify-end">
-            <button
-              type="button"
-              onClick={downloadExcel}
-              disabled={items.length === 0}
-              className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${
-                items.length === 0
-                  ? "cursor-not-allowed bg-slate-400"
-                  : "bg-emerald-600 hover:bg-emerald-700"
-              }`}
-            >
-              Download Excel
-            </button>
+        <div className="rounded-3xl border border-white/75 bg-white/75 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xl font-bold tracking-tight text-slate-800">
+              Authorization Requests
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                Total: {items.length}
+              </span>
+              <button
+                type="button"
+                onClick={downloadExcel}
+                disabled={items.length === 0}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold text-white transition ${
+                  items.length === 0
+                    ? "cursor-not-allowed bg-slate-400"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                Download Excel
+              </button>
+            </div>
           </div>
 
           {loading ? (
-            <p className="text-sm text-slate-500">Loading requests...</p>
+            <p className="px-1 py-3 text-sm text-slate-500">Loading requests...</p>
           ) : (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-100 text-left">
-                  <th className="p-4">Employee</th>
-                  <th className="p-4">Plan</th>
-                  <th className="p-4">Responsible</th>
-                  <th className="p-4">Target Date</th>
-                  <th className="p-4">Location</th>
-                  <th className="p-4">Year</th>
-                  <th className="p-4">Requested By</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-center">Action</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {items.length === 0 ? (
+            <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
                   <tr>
-                    <td colSpan={9} className="p-6 text-center text-slate-500">
-                      No authorization requests found.
-                    </td>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Employee
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Plan
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Responsible
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Target Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Location
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Year
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Requested By
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Action
+                    </th>
                   </tr>
-                ) : (
-                  items.map((item) => (
-                    <tr key={item.id} className="border-b hover:bg-slate-50">
-                      <td className="p-4">
-                        <div className="font-medium text-slate-700">
-                          {item.emp_name}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {item.emp_code}
-                        </div>
-                      </td>
-                      <td className="p-4">{item.plan_desc}</td>
-                      <td className="p-4">{item.responsible_person}</td>
-                      <td className="p-4">
-                        {item.target_date ? item.target_date.split("T")[0] : ""}
-                      </td>
-                      <td className="p-4">{item.training_location}</td>
-                      <td className="p-4">{item.year}</td>
-                      <td className="p-4">
-                        <div>{item.requested_by_name || item.requested_by}</div>
-                        <div className="text-xs text-slate-500">
-                          {new Date(item.requested_at).toLocaleString()}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            item.status === "Pending"
-                              ? "bg-amber-100 text-amber-800"
-                              : item.status === "Approved"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                        {item.reviewed_by_name ? (
-                          <div className="mt-2 text-xs text-slate-500">
-                            {item.reviewed_by_name}
-                            {item.reviewed_at
-                              ? ` | ${new Date(item.reviewed_at).toLocaleString()}`
-                              : ""}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="p-4 text-center">
-                        {item.status === "Pending" ? (
-                          <div className="space-x-2">
-                            <button
-                              type="button"
-                              onClick={() => reviewRequest(item.id, "approve")}
-                              className="rounded bg-green-600 px-3 py-1 text-white"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => reviewRequest(item.id, "reject")}
-                              className="rounded bg-red-600 px-3 py-1 text-white"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400">
-                            Review completed
-                          </span>
-                        )}
+                </thead>
+
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {items.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="px-4 py-10 text-center text-sm text-slate-500"
+                      >
+                        No authorization requests found.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    items.map((item) => (
+                      <tr key={item.id} className="transition hover:bg-cyan-50/55">
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-semibold text-slate-700">
+                            {item.emp_name}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {item.emp_code}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.plan_desc}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.responsible_person}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.target_date ? item.target_date.split("T")[0] : ""}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.training_location}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.year}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-slate-700">
+                            {item.requested_by_name || item.requested_by}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {new Date(item.requested_at).toLocaleString()}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              item.status === "Pending"
+                                ? "bg-amber-100 text-amber-800"
+                                : item.status === "Approved"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                          {item.reviewed_by_name ? (
+                            <div className="mt-2 text-xs text-slate-500">
+                              {item.reviewed_by_name}
+                              {item.reviewed_at
+                                ? ` | ${new Date(item.reviewed_at).toLocaleString()}`
+                                : ""}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {item.status === "Pending" ? (
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => reviewRequest(item.id, "approve")}
+                                className="rounded bg-green-600 px-3 py-1 text-white"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => reviewRequest(item.id, "reject")}
+                                className="rounded bg-red-600 px-3 py-1 text-white"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              Review completed
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
