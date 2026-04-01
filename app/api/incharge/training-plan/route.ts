@@ -25,6 +25,31 @@ const config = {
   },
 };
 
+const normalizePlanType = (value: unknown): "Training" | "Project" =>
+  value === "Project" ? "Project" : "Training";
+
+const normalizeProjectSkills = (value: unknown): string =>
+  String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join(", ");
+
+async function ensureTrainingPlanSchema(pool: sql.ConnectionPool) {
+  await pool.request().query(`
+    IF COL_LENGTH('dbo.TrainingPlan', 'plan_type') IS NULL
+    BEGIN
+      ALTER TABLE dbo.TrainingPlan ADD plan_type NVARCHAR(20) NULL
+      UPDATE dbo.TrainingPlan SET plan_type = 'Training' WHERE plan_type IS NULL
+    END
+
+    IF COL_LENGTH('dbo.TrainingPlan', 'project_skill_names') IS NULL
+    BEGIN
+      ALTER TABLE dbo.TrainingPlan ADD project_skill_names NVARCHAR(MAX) NULL
+    END
+  `);
+}
+
 /* ===================== POST ===================== */
 export async function POST(req: Request) {
 
@@ -46,9 +71,17 @@ export async function POST(req: Request) {
       responsible_person,
       target_date,
       training_location,
+      plan_type,
+      project_skill_names,
     } = body;
+    const normalizedPlanType = normalizePlanType(plan_type);
+    const normalizedProjectSkills =
+      normalizedPlanType === "Project"
+        ? normalizeProjectSkills(project_skill_names)
+        : "";
 
     const pool = await sql.connect(config);
+    await ensureTrainingPlanSchema(pool);
 
     await pool.request()
       .input("employee_id", sql.VarChar(50), employee_id)
@@ -56,8 +89,9 @@ export async function POST(req: Request) {
       .input("year", sql.VarChar(10), year || null)
       .input("responsible_person", sql.NVarChar(150), responsible_person || null)
       .input("target_date", sql.Date, target_date || null)
-     
       .input("training_location", sql.NVarChar(20), training_location || null)
+      .input("plan_type", sql.NVarChar(20), normalizedPlanType)
+      .input("project_skill_names", sql.NVarChar(sql.MAX), normalizedProjectSkills || null)
       .input("status", sql.Bit, 1)
       .input("CrBy", sql.VarChar(20), userId)
       .input("UpBy", sql.VarChar(20), userId)
@@ -69,8 +103,9 @@ export async function POST(req: Request) {
           year,
           responsible_person,
           target_date,
-          
           training_location,
+          plan_type,
+          project_skill_names,
           status,
           created_at,
           IsActive,
@@ -86,8 +121,9 @@ export async function POST(req: Request) {
           @year,
           @responsible_person,
           @target_date,
-         
           @training_location,
+          @plan_type,
+          @project_skill_names,
           @status,
           GETDATE(),
           1,
@@ -107,7 +143,7 @@ export async function POST(req: Request) {
 }
 
 /* ===================== GET ===================== */
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const userId = await getSessionUserId();
 
@@ -116,26 +152,38 @@ export async function GET() {
     }
 
     const pool = await sql.connect(config);
+    await ensureTrainingPlanSchema(pool);
+
+    const { searchParams } = new URL(req.url);
+    const rawPlanType = searchParams.get("plan_type");
+    const planTypeFilter =
+      rawPlanType === "Training" || rawPlanType === "Project"
+        ? rawPlanType
+        : null;
 
     const result = await pool.request()
-    .input("user_id", sql.VarChar(20), userId)
-    .query(`
-      SELECT
-        TP.plan_id,
-        TP.plan_desc,
-        TP.year,
-        TP.responsible_person,
-        TP.target_date,
-        TP.training_location,
-        TP.employee_id,
-        E.emp_name
-      FROM dbo.TrainingPlan TP
-      INNER JOIN dbo.Employees E
-        ON TP.employee_id = E.emp_code
-      WHERE TP.IsActive = 1
-        AND (TP.CrBy = @user_id OR TP.UpBy = @user_id)
-      ORDER BY TP.plan_id DESC
-    `);
+      .input("user_id", sql.VarChar(20), userId)
+      .input("plan_type", sql.NVarChar(20), planTypeFilter)
+      .query(`
+        SELECT
+          TP.plan_id,
+          TP.plan_desc,
+          TP.year,
+          TP.responsible_person,
+          TP.target_date,
+          TP.training_location,
+          TP.employee_id,
+          ISNULL(TP.plan_type, 'Training') AS plan_type,
+          TP.project_skill_names,
+          E.emp_name
+        FROM dbo.TrainingPlan TP
+        INNER JOIN dbo.Employees E
+          ON TP.employee_id = E.emp_code
+        WHERE TP.IsActive = 1
+          AND (TP.CrBy = @user_id OR TP.UpBy = @user_id)
+          AND (@plan_type IS NULL OR ISNULL(TP.plan_type, 'Training') = @plan_type)
+        ORDER BY TP.plan_id DESC
+      `);
 
     return NextResponse.json(result.recordset || []);
 
@@ -162,9 +210,17 @@ export async function PUT(req: Request) {
       responsible_person,
       target_date,
       training_location,
+      plan_type,
+      project_skill_names,
     } = await req.json();
+    const normalizedPlanType = normalizePlanType(plan_type);
+    const normalizedProjectSkills =
+      normalizedPlanType === "Project"
+        ? normalizeProjectSkills(project_skill_names)
+        : "";
 
     const pool = await sql.connect(config);
+    await ensureTrainingPlanSchema(pool);
 
     await pool.request()
       .input("plan_id", sql.Int, plan_id)
@@ -174,6 +230,8 @@ export async function PUT(req: Request) {
       .input("responsible_person", sql.NVarChar(150), responsible_person || null)
       .input("target_date", sql.Date, target_date || null)
       .input("training_location", sql.NVarChar(20), training_location || null)
+      .input("plan_type", sql.NVarChar(20), normalizedPlanType)
+      .input("project_skill_names", sql.NVarChar(sql.MAX), normalizedProjectSkills || null)
       .input("UpBy", sql.VarChar(20), userId)
       .query(`
         UPDATE dbo.TrainingPlan
@@ -184,6 +242,8 @@ export async function PUT(req: Request) {
           responsible_person = @responsible_person,
           target_date = @target_date,
           training_location = @training_location,
+          plan_type = @plan_type,
+          project_skill_names = @project_skill_names,
           UpBy = @UpBy,
           UpDt = GETDATE()
         WHERE plan_id = @plan_id
@@ -209,6 +269,7 @@ export async function DELETE(req: Request) {
     const { plan_id } = await req.json();
 
     const pool = await sql.connect(config);
+    await ensureTrainingPlanSchema(pool);
 
     await pool.request()
       .input("plan_id", sql.Int, plan_id)

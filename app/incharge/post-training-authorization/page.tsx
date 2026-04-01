@@ -8,11 +8,14 @@ type AuthorizationItem = {
   emp_code: string;
   emp_name: string;
   plan_desc: string;
+  project_skill_names: string | null;
   year: string | null;
   responsible_person: string | null;
   target_date: string | null;
   Completion_date: string | null;
   training_location: string | null;
+  target_outcome: string | null;
+  actual_outcome: string | null;
   effectiveness_desired: number | null;
   effectiveness_actual: number | null;
   effectiveness_gap: number | null;
@@ -96,13 +99,14 @@ export default function PostTrainingAuthorizationPage() {
       "Employee Code",
       "Employee Name",
       "Plan",
+      "Skill(s)",
       "Year",
       "Responsible Person",
       "Location",
       "Target Date",
       "Completion Date",
-      "Desired",
-      "Actual",
+      "Target Outcome",
+      "Actual Outcome",
       "Gap",
       "Gap Fulfilled",
       "Key Learnings",
@@ -119,13 +123,14 @@ export default function PostTrainingAuthorizationPage() {
       item.emp_code,
       item.emp_name,
       item.plan_desc,
+      item.project_skill_names ?? "",
       item.year ?? "",
       item.responsible_person ?? "",
       item.training_location ?? "",
       formatDateOnly(item.target_date),
       formatDateOnly(item.Completion_date),
-      item.effectiveness_desired ?? "",
-      item.effectiveness_actual ?? "",
+      item.target_outcome ?? item.effectiveness_desired ?? "",
+      item.actual_outcome ?? item.effectiveness_actual ?? "",
       item.effectiveness_gap ?? "",
       item.gap_fulfilled ? "Yes" : "No",
       item.key_learnings ?? "",
@@ -289,6 +294,9 @@ export default function PostTrainingAuthorizationPage() {
                       Plan
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Skill(s)
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Responsible
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -301,10 +309,10 @@ export default function PostTrainingAuthorizationPage() {
                       Completion Date
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                      Desired
+                      Target Outcome
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                      Actual
+                      Actual Outcome
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Gap
@@ -334,7 +342,7 @@ export default function PostTrainingAuthorizationPage() {
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={15}
+                        colSpan={16}
                         className="px-4 py-10 text-center text-sm text-slate-500"
                       >
                         No authorization requests found.
@@ -342,14 +350,19 @@ export default function PostTrainingAuthorizationPage() {
                     </tr>
                   ) : (
                     items.map((item) => (
-                      <tr key={item.id} className="transition hover:bg-cyan-50/55">
+                      <tr key={item.id} className="align-top transition hover:bg-cyan-50/55">
                         <td className="px-4 py-3">
                           <div className="text-sm font-semibold text-slate-700">{item.emp_name}</div>
                           <div className="text-xs text-slate-500">{item.emp_code}</div>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">
-                          <div>{item.plan_desc}</div>
+                          <div className="max-w-[220px] whitespace-normal break-words">{item.plan_desc}</div>
                           <div className="text-xs text-slate-500">{item.year || ""}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          <div className="max-w-[220px] whitespace-normal break-words">
+                            {item.project_skill_names || "-"}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">{item.responsible_person || "-"}</td>
                         <td className="px-4 py-3 text-sm text-slate-700">{item.training_location || "-"}</td>
@@ -359,9 +372,13 @@ export default function PostTrainingAuthorizationPage() {
                         <td className="px-4 py-3 text-sm text-slate-700">
                           {item.Completion_date ? item.Completion_date.split("T")[0] : "-"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{item.effectiveness_desired}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{item.effectiveness_actual}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{item.effectiveness_gap}</td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.target_outcome ?? item.effectiveness_desired ?? "-"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.actual_outcome ?? item.effectiveness_actual ?? "-"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">{item.effectiveness_gap ?? "-"}</td>
                         <td className="px-4 py-3 text-sm text-slate-700">{item.gap_fulfilled ? "Yes" : "No"}</td>
                         <td className="px-4 py-3 text-sm text-slate-700">
                           <div className="max-w-xs whitespace-pre-wrap break-words">
@@ -371,7 +388,7 @@ export default function PostTrainingAuthorizationPage() {
                         <td className="px-4 py-3 text-sm text-slate-700">
                           {item.evidence_file ? (
                             <a
-                              href={`/evidence/${item.evidence_file}`}
+                              href={`/attachments/${item.evidence_file}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-blue-600 hover:underline"
@@ -428,7 +445,7 @@ export default function PostTrainingAuthorizationPage() {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-xs text-slate-400">Review completed</span>
+                            <span className="text-xs text-slate-500">Reviewed</span>
                           )}
                         </td>
                       </tr>

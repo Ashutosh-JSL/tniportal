@@ -14,12 +14,18 @@ type TrainingPlanOption = {
   responsible_person: string;
   target_date: string;
   training_location: string;
+  project_skill_names: string | null;
 };
 
 type PostTrainingRecord = {
   row_key: string;
   plan_id: number;
+  source_plan_id: number | null;
   plan_desc: string;
+  project_skill_names: string | null;
+  target_outcome: string | null;
+  actual_outcome: string | null;
+  outcome_gap: number | null;
   year: string;
   responsible_person: string;
   target_date: string;
@@ -27,10 +33,10 @@ type PostTrainingRecord = {
   training_location: string;
   employee_id: string;
   emp_name: string;
-  effectiveness_desired: number;
-  effectiveness_actual: number;
-  effectiveness_gap: number;
-  gap_fulfilled: boolean;
+  effectiveness_desired: number | null;
+  effectiveness_actual: number | null;
+  effectiveness_gap: number | null;
+  gap_fulfilled: boolean | null;
   key_learnings: string;
   evidence_file: string | null;
   created_at: string;
@@ -42,6 +48,7 @@ type AuthorizationItem = {
 };
 
 type FormState = {
+  source_plan_id: string;
   plan_desc: string;
   employee_id: string;
   year: string;
@@ -53,10 +60,12 @@ type FormState = {
   effectiveness_actual: string;
   gap_fulfilled: boolean;
   key_learnings: string;
+  project_skill_names: string;
   evidence_file: File | null;
 };
 
 const emptyForm: FormState = {
+  source_plan_id: "",
   plan_desc: "",
   employee_id: "",
   year: "",
@@ -68,6 +77,7 @@ const emptyForm: FormState = {
   effectiveness_actual: "",
   gap_fulfilled: false,
   key_learnings: "",
+  project_skill_names: "",
   evidence_file: null,
 };
 
@@ -106,7 +116,13 @@ export default function PostTrainingPage() {
               item.status === "Pending" &&
               Boolean(item.source_row_key),
           )
-          .map((item: AuthorizationItem) => String(item.source_row_key))
+          .flatMap((item: AuthorizationItem) => {
+            const key = String(item.source_row_key);
+            if (key.startsWith("T|") || key.startsWith("P|")) {
+              return [key];
+            }
+            return [key, `T|${key}`];
+          })
       : [];
 
     setSubmittedPlanIds(pendingIds);
@@ -145,6 +161,7 @@ export default function PostTrainingPage() {
     }
 
     fd.append("plan_desc", source.plan_desc);
+    fd.append("source_plan_id", source.source_plan_id);
     fd.append("employee_id", source.employee_id);
     fd.append("year", source.year);
     fd.append("responsible_person", source.responsible_person);
@@ -153,8 +170,11 @@ export default function PostTrainingPage() {
     fd.append("training_location", source.training_location);
     fd.append("effectiveness_desired", source.effectiveness_desired);
     fd.append("effectiveness_actual", source.effectiveness_actual);
+    fd.append("target_outcome", source.effectiveness_desired);
+    fd.append("actual_outcome", source.effectiveness_actual);
     fd.append("gap_fulfilled", String(source.gap_fulfilled));
     fd.append("key_learnings", source.key_learnings);
+    fd.append("project_skill_names", source.project_skill_names);
 
     if (source.evidence_file) {
       fd.append("file", source.evidence_file);
@@ -190,6 +210,7 @@ export default function PostTrainingPage() {
   const startEdit = (plan: PostTrainingRecord) => {
     setEditingId(plan.row_key);
     setEditForm({
+      source_plan_id: String(plan.source_plan_id ?? plan.plan_id ?? ""),
       plan_desc: plan.plan_desc ?? "",
       employee_id: plan.employee_id ?? "",
       year: plan.year ?? "",
@@ -199,10 +220,11 @@ export default function PostTrainingPage() {
         ? plan.Completion_date.split("T")[0]
         : "",
       training_location: plan.training_location ?? "",
-      effectiveness_desired: String(plan.effectiveness_desired ?? ""),
-      effectiveness_actual: String(plan.effectiveness_actual ?? ""),
+      effectiveness_desired: String(plan.target_outcome ?? plan.effectiveness_desired ?? ""),
+      effectiveness_actual: String(plan.actual_outcome ?? plan.effectiveness_actual ?? ""),
       gap_fulfilled: Boolean(plan.gap_fulfilled),
       key_learnings: plan.key_learnings ?? "",
+      project_skill_names: plan.project_skill_names ?? "",
       evidence_file: null,
     });
   };
@@ -276,9 +298,21 @@ export default function PostTrainingPage() {
     await loadPlans();
   };
 
-  const calculatedGap =
-    Number(formData.effectiveness_desired || 0) -
-    Number(formData.effectiveness_actual || 0);
+  const getNumericGap = (targetValue: string, actualValue: string) => {
+    const target = Number(targetValue);
+    const actual = Number(actualValue);
+
+    if (!Number.isFinite(target) || !Number.isFinite(actual)) {
+      return null;
+    }
+
+    return target - actual;
+  };
+
+  const calculatedGap = getNumericGap(
+    formData.effectiveness_desired,
+    formData.effectiveness_actual,
+  );
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
@@ -311,6 +345,7 @@ export default function PostTrainingPage() {
 
                 setFormData((prev) => ({
                   ...prev,
+                  source_plan_id: "",
                   employee_id: employeeId,
                   plan_desc: "",
                   year: "",
@@ -318,6 +353,10 @@ export default function PostTrainingPage() {
                   target_date: "",
                   Completion_date: "",
                   training_location: "",
+                  effectiveness_desired: "",
+                  effectiveness_actual: "",
+                  gap_fulfilled: false,
+                  project_skill_names: "",
                 }));
 
                 await loadEmployeePlans(employeeId);
@@ -338,32 +377,48 @@ export default function PostTrainingPage() {
             </label>
             <select
               className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-              value={formData.plan_desc}
+              value={formData.source_plan_id}
               onChange={(e) => {
-                const selectedPlan = e.target.value;
+                const selectedPlanId = Number(e.target.value);
                 const planData = employeePlans.find(
-                  (plan) => plan.plan_desc === selectedPlan,
+                  (plan) => plan.plan_id === selectedPlanId,
                 );
 
                 setFormData((prev) => ({
                   ...prev,
-                  plan_desc: selectedPlan,
+                  source_plan_id: selectedPlanId ? String(selectedPlanId) : "",
+                  plan_desc: planData?.plan_desc || "",
                   year: planData?.year || "",
                   responsible_person: planData?.responsible_person || "",
                   target_date: planData?.target_date
                     ? planData.target_date.split("T")[0]
                     : "",
                   training_location: planData?.training_location || "",
+                  effectiveness_desired: "",
+                  effectiveness_actual: "",
+                  gap_fulfilled: false,
+                  project_skill_names: planData?.project_skill_names ?? "",
                 }));
               }}
             >
               <option value="">Select Training Plan</option>
               {employeePlans.map((plan) => (
-                <option key={plan.plan_id} value={plan.plan_desc}>
+                <option key={plan.plan_id} value={plan.plan_id}>
                   {plan.plan_desc}
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+              Skill(s)
+            </label>
+            <input
+              readOnly
+              className="w-full rounded-xl border border-slate-200 bg-slate-100/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm"
+              value={formData.project_skill_names || "-"}
+            />
           </div>
 
           <div>
@@ -446,10 +501,10 @@ export default function PostTrainingPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Effectiveness Desired
+              Target Outcome
             </label>
             <input
-              type="number"
+              type="text"
               className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.effectiveness_desired}
               onChange={(e) =>
@@ -463,10 +518,10 @@ export default function PostTrainingPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Effectiveness Actual
+              Actual Outcome
             </label>
             <input
-              type="number"
+              type="text"
               className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.effectiveness_actual}
               onChange={(e) =>
@@ -480,13 +535,12 @@ export default function PostTrainingPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Effectiveness Gap
+              Gap
             </label>
             <input
-              type="number"
               readOnly
               className="w-full rounded-xl border border-slate-200 bg-slate-100/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm"
-              value={calculatedGap}
+              value={calculatedGap ?? "-"}
             />
           </div>
 
@@ -575,12 +629,13 @@ export default function PostTrainingPage() {
                   <th className="p-3 text-xs font-bold uppercase tracking-wider">Select</th>
                 ) : null}
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Employee</th>
-                <th className="p-3 text-xs font-bold uppercase tracking-wider">Plan</th>
+                <th className="p-3 text-left text-xs font-bold uppercase tracking-wider">Plan</th>
+                <th className="p-3 text-left text-xs font-bold uppercase tracking-wider">Skill(s)</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Year</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Responsible</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Location</th>
-                <th className="p-3 text-xs font-bold uppercase tracking-wider">Desired</th>
-                <th className="p-3 text-xs font-bold uppercase tracking-wider">Actual</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Target Outcome</th>
+                <th className="p-3 text-xs font-bold uppercase tracking-wider">Actual Outcome</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Gap</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Fulfilled</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Key Learnings</th>
@@ -594,14 +649,15 @@ export default function PostTrainingPage() {
 
             <tbody>
               {plans.map((plan) => {
-                const editGap =
-                  Number(editForm.effectiveness_desired || 0) -
-                  Number(editForm.effectiveness_actual || 0);
+                const editGap = getNumericGap(
+                  editForm.effectiveness_desired,
+                  editForm.effectiveness_actual,
+                );
 
                 return (
                   <tr
                     key={plan.row_key}
-                    className="border-b text-center transition hover:bg-cyan-50/55"
+                    className="border-b text-center align-top transition hover:bg-cyan-50/55"
                   >
                     {activeRole === "Incharge" ? (
                       <td className="p-2">
@@ -644,7 +700,7 @@ export default function PostTrainingPage() {
                       )}
                     </td>
 
-                    <td className="p-2">
+                    <td className="p-2 text-left align-top">
                       {editingId === plan.row_key ? (
                         <input
                           className="w-full rounded border px-2 py-1"
@@ -654,7 +710,23 @@ export default function PostTrainingPage() {
                           }
                         />
                       ) : (
-                        plan.plan_desc
+                        <div className="max-w-[260px] whitespace-normal break-words">
+                          {plan.plan_desc || "-"}
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="p-2 text-left align-top">
+                      {editingId === plan.row_key ? (
+                        <input
+                          readOnly
+                          className="w-full rounded border bg-slate-100 px-2 py-1"
+                          value={editForm.project_skill_names || "-"}
+                        />
+                      ) : (
+                        <div className="max-w-[240px] whitespace-normal break-words">
+                          {plan.project_skill_names || "-"}
+                        </div>
                       )}
                     </td>
 
@@ -714,7 +786,7 @@ export default function PostTrainingPage() {
                     <td className="p-2">
                       {editingId === plan.row_key ? (
                         <input
-                          type="number"
+                          type="text"
                           className="w-full rounded border px-2 py-1"
                           value={editForm.effectiveness_desired}
                           onChange={(e) =>
@@ -724,15 +796,13 @@ export default function PostTrainingPage() {
                             })
                           }
                         />
-                      ) : (
-                        plan.effectiveness_desired
-                      )}
+                      ) : plan.target_outcome ?? plan.effectiveness_desired ?? "-"}
                     </td>
 
                     <td className="p-2">
                       {editingId === plan.row_key ? (
                         <input
-                          type="number"
+                          type="text"
                           className="w-full rounded border px-2 py-1"
                           value={editForm.effectiveness_actual}
                           onChange={(e) =>
@@ -742,13 +812,13 @@ export default function PostTrainingPage() {
                             })
                           }
                         />
-                      ) : (
-                        plan.effectiveness_actual
-                      )}
+                      ) : plan.actual_outcome ?? plan.effectiveness_actual ?? "-"}
                     </td>
 
                     <td className="p-2">
-                      {editingId === plan.row_key ? editGap : plan.effectiveness_gap}
+                      {editingId === plan.row_key
+                        ? editGap ?? "-"
+                        : plan.outcome_gap ?? plan.effectiveness_gap ?? "-"}
                     </td>
 
                     <td className="p-2">
@@ -800,7 +870,7 @@ export default function PostTrainingPage() {
                         />
                       ) : plan.evidence_file ? (
                         <a
-                          href={`/evidence/${plan.evidence_file}`}
+                          href={`/attachments/${plan.evidence_file}`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-blue-600 hover:underline"
@@ -898,3 +968,4 @@ export default function PostTrainingPage() {
     </div>
   );
 }
+

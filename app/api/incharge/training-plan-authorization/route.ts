@@ -25,6 +25,8 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
         emp_code VARCHAR(20) NOT NULL,
         emp_name NVARCHAR(100) NULL,
         plan_desc NVARCHAR(255) NOT NULL,
+        plan_type NVARCHAR(20) NOT NULL DEFAULT 'Training',
+        project_skill_names NVARCHAR(MAX) NULL,
         [year] VARCHAR(10) NULL,
         responsible_person NVARCHAR(150) NULL,
         target_date DATE NULL,
@@ -37,6 +39,18 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
         reviewed_by_name NVARCHAR(100) NULL,
         reviewed_at DATETIME NULL
       )
+    END
+
+    IF COL_LENGTH('dbo.TrainingPlanAuthorizationQueue', 'plan_type') IS NULL
+    BEGIN
+      ALTER TABLE dbo.TrainingPlanAuthorizationQueue
+      ADD plan_type NVARCHAR(20) NOT NULL CONSTRAINT DF_TrainingPlanAuthorizationQueue_plan_type DEFAULT 'Training'
+    END
+
+    IF COL_LENGTH('dbo.TrainingPlanAuthorizationQueue', 'project_skill_names') IS NULL
+    BEGIN
+      ALTER TABLE dbo.TrainingPlanAuthorizationQueue
+      ADD project_skill_names NVARCHAR(MAX) NULL
     END
   `);
 }
@@ -59,6 +73,8 @@ export async function GET() {
         emp_code,
         emp_name,
         plan_desc,
+        plan_type,
+        project_skill_names,
         [year],
         responsible_person,
         target_date,
@@ -143,6 +159,16 @@ export async function POST(req: NextRequest) {
         .input("emp_code", sql.VarChar(20), String(record.employee_id ?? ""))
         .input("emp_name", sql.NVarChar(100), String(record.emp_name ?? ""))
         .input("plan_desc", sql.NVarChar(255), String(record.plan_desc ?? ""))
+        .input(
+          "plan_type",
+          sql.NVarChar(20),
+          String(record.plan_type ?? "Training") === "Project" ? "Project" : "Training",
+        )
+        .input(
+          "project_skill_names",
+          sql.NVarChar(sql.MAX),
+          String(record.project_skill_names ?? "").trim() || null,
+        )
         .input("year", sql.VarChar(10), String(record.year ?? ""))
         .input(
           "responsible_person",
@@ -172,6 +198,8 @@ export async function POST(req: NextRequest) {
             emp_code,
             emp_name,
             plan_desc,
+            plan_type,
+            project_skill_names,
             [year],
             responsible_person,
             target_date,
@@ -185,6 +213,8 @@ export async function POST(req: NextRequest) {
             @emp_code,
             @emp_name,
             @plan_desc,
+            @plan_type,
+            @project_skill_names,
             @year,
             @responsible_person,
             @target_date,

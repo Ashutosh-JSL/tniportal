@@ -8,6 +8,8 @@ type AuthorizationItem = {
   emp_code: string;
   emp_name: string;
   plan_desc: string;
+  plan_type: string | null;
+  project_skill_names: string | null;
   year: string | null;
   responsible_person: string | null;
   target_date: string | null;
@@ -89,6 +91,8 @@ export default function TrainingPlanAuthorizationPage() {
       "Employee Code",
       "Employee Name",
       "Plan",
+      "Plan Type",
+      "Skill(s)",
       "Responsible Person",
       "Target Date",
       "Location",
@@ -105,6 +109,8 @@ export default function TrainingPlanAuthorizationPage() {
       item.emp_code,
       item.emp_name,
       item.plan_desc,
+      item.plan_type ?? "Training",
+      item.project_skill_names ?? "",
       item.responsible_person ?? "",
       formatDateOnly(item.target_date),
       item.training_location ?? "",
@@ -268,6 +274,12 @@ export default function TrainingPlanAuthorizationPage() {
                       Plan
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Type
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Skill(s)
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Responsible
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -295,7 +307,7 @@ export default function TrainingPlanAuthorizationPage() {
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={11}
                         className="px-4 py-10 text-center text-sm text-slate-500"
                       >
                         No authorization requests found.
@@ -314,6 +326,20 @@ export default function TrainingPlanAuthorizationPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">
                           {item.plan_desc}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              (item.plan_type ?? "Training") === "Project"
+                                ? "bg-indigo-100 text-indigo-700"
+                                : "bg-cyan-100 text-cyan-700"
+                            }`}
+                          >
+                            {item.plan_type ?? "Training"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.project_skill_names || "-"}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">
                           {item.responsible_person}

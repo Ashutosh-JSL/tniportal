@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/options";
@@ -9,6 +9,15 @@ type SessionUser = {
   username?: string;
   roles?: string[];
 };
+
+function parseNullableInt(value: unknown): number | null {
+  const parsed = Number(String(value ?? "").trim());
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return Math.trunc(parsed);
+}
 
 async function getAuthorizedUser() {
   const session = await getServerSession(authOptions);
@@ -31,6 +40,9 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
         target_date DATE NULL,
         Completion_date DATE NULL,
         training_location NVARCHAR(50) NULL,
+        project_skill_names NVARCHAR(MAX) NULL,
+        target_outcome NVARCHAR(200) NULL,
+        actual_outcome NVARCHAR(200) NULL,
         effectiveness_desired INT NULL,
         effectiveness_actual INT NULL,
         effectiveness_gap INT NULL,
@@ -53,6 +65,24 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
     BEGIN
       ALTER TABLE dbo.PostTrainingAuthorizationQueue
       ADD source_row_key NVARCHAR(255) NULL
+    END
+
+    IF COL_LENGTH('dbo.PostTrainingAuthorizationQueue', 'project_skill_names') IS NULL
+    BEGIN
+      ALTER TABLE dbo.PostTrainingAuthorizationQueue
+      ADD project_skill_names NVARCHAR(MAX) NULL
+    END
+
+    IF COL_LENGTH('dbo.PostTrainingAuthorizationQueue', 'target_outcome') IS NULL
+    BEGIN
+      ALTER TABLE dbo.PostTrainingAuthorizationQueue
+      ADD target_outcome NVARCHAR(200) NULL
+    END
+
+    IF COL_LENGTH('dbo.PostTrainingAuthorizationQueue', 'actual_outcome') IS NULL
+    BEGIN
+      ALTER TABLE dbo.PostTrainingAuthorizationQueue
+      ADD actual_outcome NVARCHAR(200) NULL
     END
   `);
 }
@@ -81,6 +111,9 @@ export async function GET() {
         target_date,
         Completion_date,
         training_location,
+        project_skill_names,
+        target_outcome,
+        actual_outcome,
         effectiveness_desired,
         effectiveness_actual,
         effectiveness_gap,
@@ -142,6 +175,20 @@ export async function POST(req: NextRequest) {
     for (const record of records) {
       const sourceId = Number(record.plan_id);
       const sourceRowKey = String(record.row_key ?? "");
+      const targetOutcome = String(
+        record.target_outcome ?? record.effectiveness_desired ?? "",
+      ).trim();
+      const actualOutcome = String(
+        record.actual_outcome ?? record.effectiveness_actual ?? "",
+      ).trim();
+      const effectivenessDesired =
+        parseNullableInt(record.effectiveness_desired ?? targetOutcome);
+      const effectivenessActual =
+        parseNullableInt(record.effectiveness_actual ?? actualOutcome);
+      const effectivenessGap =
+        effectivenessDesired !== null && effectivenessActual !== null
+          ? effectivenessDesired - effectivenessActual
+          : null;
 
       if (!Number.isFinite(sourceId) || !sourceRowKey) {
         continue;
@@ -181,19 +228,26 @@ export async function POST(req: NextRequest) {
           String(record.training_location ?? ""),
         )
         .input(
+          "project_skill_names",
+          sql.NVarChar(sql.MAX),
+          String(record.project_skill_names ?? "").trim() || null,
+        )
+        .input("target_outcome", sql.NVarChar(200), targetOutcome || null)
+        .input("actual_outcome", sql.NVarChar(200), actualOutcome || null)
+        .input(
           "effectiveness_desired",
           sql.Int,
-          Number(record.effectiveness_desired ?? 0),
+          effectivenessDesired,
         )
         .input(
           "effectiveness_actual",
           sql.Int,
-          Number(record.effectiveness_actual ?? 0),
+          effectivenessActual,
         )
         .input(
           "effectiveness_gap",
           sql.Int,
-          Number(record.effectiveness_gap ?? 0),
+          effectivenessGap,
         )
         .input("gap_fulfilled", sql.Bit, Boolean(record.gap_fulfilled))
         .input("key_learnings", sql.NVarChar(sql.MAX), String(record.key_learnings ?? ""))
@@ -221,6 +275,9 @@ export async function POST(req: NextRequest) {
             target_date,
             Completion_date,
             training_location,
+            project_skill_names,
+            target_outcome,
+            actual_outcome,
             effectiveness_desired,
             effectiveness_actual,
             effectiveness_gap,
@@ -242,6 +299,9 @@ export async function POST(req: NextRequest) {
             @target_date,
             @Completion_date,
             @training_location,
+            @project_skill_names,
+            @target_outcome,
+            @actual_outcome,
             @effectiveness_desired,
             @effectiveness_actual,
             @effectiveness_gap,
