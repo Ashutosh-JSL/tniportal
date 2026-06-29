@@ -35,6 +35,8 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
         emp_code VARCHAR(20) NOT NULL,
         emp_name NVARCHAR(100) NULL,
         plan_desc NVARCHAR(255) NOT NULL,
+        skill_area_id INT NULL,
+        skill_area_name NVARCHAR(100) NULL,
         [year] VARCHAR(10) NULL,
         responsible_person NVARCHAR(150) NULL,
         target_date DATE NULL,
@@ -73,6 +75,18 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
       ADD project_skill_names NVARCHAR(MAX) NULL
     END
 
+    IF COL_LENGTH('dbo.PostTrainingAuthorizationQueue', 'skill_area_id') IS NULL
+    BEGIN
+      ALTER TABLE dbo.PostTrainingAuthorizationQueue
+      ADD skill_area_id INT NULL
+    END
+
+    IF COL_LENGTH('dbo.PostTrainingAuthorizationQueue', 'skill_area_name') IS NULL
+    BEGIN
+      ALTER TABLE dbo.PostTrainingAuthorizationQueue
+      ADD skill_area_name NVARCHAR(100) NULL
+    END
+
     IF COL_LENGTH('dbo.PostTrainingAuthorizationQueue', 'target_outcome') IS NULL
     BEGIN
       ALTER TABLE dbo.PostTrainingAuthorizationQueue
@@ -106,6 +120,8 @@ export async function GET() {
         emp_code,
         emp_name,
         plan_desc,
+        skill_area_id,
+        skill_area_name,
         [year],
         responsible_person,
         target_date,
@@ -214,6 +230,12 @@ export async function POST(req: NextRequest) {
         .input("emp_code", sql.VarChar(20), String(record.employee_id ?? ""))
         .input("emp_name", sql.NVarChar(100), String(record.emp_name ?? ""))
         .input("plan_desc", sql.NVarChar(255), String(record.plan_desc ?? ""))
+        .input("skill_area_id", sql.Int, parseNullableInt(record.skill_area_id))
+        .input(
+          "skill_area_name",
+          sql.NVarChar(100),
+          String(record.skill_area_name ?? "").trim() || null,
+        )
         .input("year", sql.VarChar(10), String(record.year ?? ""))
         .input(
           "responsible_person",
@@ -270,6 +292,8 @@ export async function POST(req: NextRequest) {
             emp_code,
             emp_name,
             plan_desc,
+            skill_area_id,
+            skill_area_name,
             [year],
             responsible_person,
             target_date,
@@ -294,6 +318,8 @@ export async function POST(req: NextRequest) {
             @emp_code,
             @emp_name,
             @plan_desc,
+            @skill_area_id,
+            @skill_area_name,
             @year,
             @responsible_person,
             @target_date,

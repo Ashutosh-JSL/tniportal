@@ -14,6 +14,8 @@ type TrainingPlanOption = {
   responsible_person: string;
   target_date: string;
   training_location: string;
+  skill_area_id: number | null;
+  skill_area_name: string | null;
   project_skill_names: string | null;
 };
 
@@ -23,6 +25,8 @@ type PostTrainingRecord = {
   source_plan_id: number | null;
   plan_desc: string;
   project_skill_names: string | null;
+  skill_area_id: number | null;
+  skill_area_name: string | null;
   target_outcome: string | null;
   actual_outcome: string | null;
   outcome_gap: number | null;
@@ -61,6 +65,8 @@ type FormState = {
   gap_fulfilled: boolean;
   key_learnings: string;
   project_skill_names: string;
+  skill_area_id: string;
+  skill_area_name: string;
   evidence_file: File | null;
 };
 
@@ -78,6 +84,8 @@ const emptyForm: FormState = {
   gap_fulfilled: false,
   key_learnings: "",
   project_skill_names: "",
+  skill_area_id: "",
+  skill_area_name: "",
   evidence_file: null,
 };
 
@@ -157,9 +165,17 @@ export default function PostTrainingPage() {
     }
 
     const res = await fetch(
-      `/api/incharge/Post-Training/by-employee?empId=${employeeId}`,
+      `/api/incharge/Post-Training/by-employee?empId=${encodeURIComponent(employeeId)}`,
+      { cache: "no-store" },
     );
     const data = await res.json();
+
+    if (!res.ok) {
+      alert(data?.error ?? "Unable to load training plans for this employee");
+      setEmployeePlans([]);
+      return;
+    }
+
     setEmployeePlans(Array.isArray(data) ? data : []);
   };
 
@@ -185,6 +201,8 @@ export default function PostTrainingPage() {
     fd.append("gap_fulfilled", String(source.gap_fulfilled));
     fd.append("key_learnings", source.key_learnings);
     fd.append("project_skill_names", source.project_skill_names);
+    fd.append("skill_area_id", source.skill_area_id);
+    fd.append("skill_area_name", source.skill_area_name);
 
     if (source.evidence_file) {
       fd.append("file", source.evidence_file);
@@ -235,6 +253,8 @@ export default function PostTrainingPage() {
       gap_fulfilled: Boolean(plan.gap_fulfilled),
       key_learnings: plan.key_learnings ?? "",
       project_skill_names: plan.project_skill_names ?? "",
+      skill_area_id: String(plan.skill_area_id ?? ""),
+      skill_area_name: plan.skill_area_name ?? "",
       evidence_file: null,
     });
   };
@@ -374,6 +394,8 @@ export default function PostTrainingPage() {
                   effectiveness_actual: "",
                   gap_fulfilled: false,
                   project_skill_names: "",
+                  skill_area_id: "",
+                  skill_area_name: "",
                 }));
 
                 await loadEmployeePlans(employeeId);
@@ -415,6 +437,8 @@ export default function PostTrainingPage() {
                   effectiveness_actual: "",
                   gap_fulfilled: false,
                   project_skill_names: planData?.project_skill_names ?? "",
+                  skill_area_id: String(planData?.skill_area_id ?? ""),
+                  skill_area_name: planData?.skill_area_name ?? "",
                 }));
               }}
             >
@@ -425,6 +449,17 @@ export default function PostTrainingPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+              Skill Area
+            </label>
+            <input
+              readOnly
+              className="w-full rounded-xl border border-slate-200 bg-slate-100/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm"
+              value={formData.skill_area_name || "-"}
+            />
           </div>
 
           <div className="md:col-span-2">
@@ -647,6 +682,7 @@ export default function PostTrainingPage() {
                 ) : null}
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Employee</th>
                 <th className="p-3 text-left text-xs font-bold uppercase tracking-wider">Plan</th>
+                <th className="p-3 text-left text-xs font-bold uppercase tracking-wider">Skill Area</th>
                 <th className="p-3 text-left text-xs font-bold uppercase tracking-wider">Skill(s)</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Year</th>
                 <th className="p-3 text-xs font-bold uppercase tracking-wider">Responsible</th>
@@ -672,8 +708,9 @@ export default function PostTrainingPage() {
                 );
                 const authorizationStatus =
                   authorizationStatusByRowKey[plan.row_key];
-                const isPendingAuthorization =
-                  authorizationStatus === "Pending";
+                const isAuthorizationLocked =
+                  authorizationStatus === "Pending" ||
+                  authorizationStatus === "Approved";
 
                 return (
                   <tr
@@ -685,7 +722,7 @@ export default function PostTrainingPage() {
                         <input
                           type="checkbox"
                           checked={selectedPlanIds.includes(plan.row_key)}
-                          disabled={isPendingAuthorization}
+                          disabled={isAuthorizationLocked}
                           onChange={() => togglePlanSelection(plan.row_key)}
                           className="h-4 w-4"
                         />
@@ -737,6 +774,20 @@ export default function PostTrainingPage() {
                       ) : (
                         <div className="max-w-[260px] whitespace-normal break-words">
                           {plan.plan_desc || "-"}
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="p-2 text-left align-top">
+                      {editingId === plan.row_key ? (
+                        <input
+                          readOnly
+                          className="w-full rounded border bg-slate-100 px-2 py-1"
+                          value={editForm.skill_area_name || "-"}
+                        />
+                      ) : (
+                        <div className="max-w-[220px] whitespace-normal break-words">
+                          {plan.skill_area_name || "-"}
                         </div>
                       )}
                     </td>

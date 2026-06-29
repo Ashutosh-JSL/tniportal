@@ -8,6 +8,8 @@ type AuthorizationItem = {
   emp_code: string;
   emp_name: string;
   plan_desc: string;
+  skill_area_id: number | null;
+  skill_area_name: string | null;
   project_skill_names: string | null;
   year: string | null;
   responsible_person: string | null;
@@ -99,6 +101,7 @@ export default function PostTrainingAuthorizationPage() {
       "Employee Code",
       "Employee Name",
       "Plan",
+      "Skill Area",
       "Skill(s)",
       "Year",
       "Responsible Person",
@@ -123,6 +126,7 @@ export default function PostTrainingAuthorizationPage() {
       item.emp_code,
       item.emp_name,
       item.plan_desc,
+      item.skill_area_name ?? "",
       item.project_skill_names ?? "",
       item.year ?? "",
       item.responsible_person ?? "",
@@ -294,6 +298,9 @@ export default function PostTrainingAuthorizationPage() {
                       Plan
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Skill Area
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Skill(s)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -342,7 +349,7 @@ export default function PostTrainingAuthorizationPage() {
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={16}
+                        colSpan={17}
                         className="px-4 py-10 text-center text-sm text-slate-500"
                       >
                         No authorization requests found.
@@ -358,6 +365,11 @@ export default function PostTrainingAuthorizationPage() {
                         <td className="px-4 py-3 text-sm text-slate-700">
                           <div className="max-w-[220px] whitespace-normal break-words">{item.plan_desc}</div>
                           <div className="text-xs text-slate-500">{item.year || ""}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          <div className="max-w-[180px] whitespace-normal break-words">
+                            {item.skill_area_name || "-"}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">
                           <div className="max-w-[220px] whitespace-normal break-words">

@@ -59,8 +59,34 @@ async function ensureTrainingPlanSchema(pool: sql.ConnectionPool) {
   `);
 }
 
+async function isTrainingPlanStatusBit(pool: sql.ConnectionPool) {
+  const result = await pool.request().query(`
+    SELECT TOP 1 t.name AS data_type
+    FROM sys.columns c
+    JOIN sys.types t ON c.user_type_id = t.user_type_id
+    WHERE c.object_id = OBJECT_ID('dbo.TrainingPlan')
+      AND c.name = 'status'
+  `);
+
+  return result.recordset[0]?.data_type === "bit";
+}
+
+function inputTrainingPlanStatus(
+  request: sql.Request,
+  isBitStatus: boolean,
+  status: "Pending" | "Approved" | "Rejected",
+) {
+  if (isBitStatus) {
+    request.input("status", sql.Bit, status === "Rejected" ? 0 : 1);
+    return request;
+  }
+
+  request.input("status", sql.NVarChar(20), status);
+  return request;
+}
+
 /* ===================== GET ===================== */
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const currentUser = await getAuthorizedUser();
 
@@ -83,6 +109,8 @@ export async function GET(req: Request) {
         TP.employee_id AS emp_code,
         E.emp_name,
         TP.plan_desc,
+        COALESCE(TP.Skill_Area_Id, tpm.skill_area_id) AS skill_area_id,
+        sa.SKILL_AREA AS skill_area_name,
         ISNULL(TP.plan_type, 'Training') AS plan_type,
         TP.project_skill_names,
         TP.year,
@@ -91,17 +119,30 @@ export async function GET(req: Request) {
         TP.training_location,
         TP.CrBy AS requested_by,
         TP.UpBy AS requested_by_name,
-        CASE WHEN TP.status = 1 THEN 'Pending' ELSE 'Rejected' END AS status,
+        CASE
+          WHEN CONVERT(NVARCHAR(20), TP.status) = 'Approved' THEN 'Approved'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = 'Rejected' THEN 'Rejected'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = '0' THEN 'Rejected'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = '1' AND TP.reviewed_at IS NOT NULL THEN 'Approved'
+          ELSE 'Pending'
+        END AS status,
         TP.created_at AS requested_at,
         TP.reviewed_by,
         (SELECT TOP 1 emp_name FROM dbo.Employees WHERE emp_code = TP.reviewed_by) AS reviewed_by_name,
         TP.reviewed_at
       FROM dbo.TrainingPlan TP
       INNER JOIN dbo.Employees E ON TP.employee_id = E.emp_code
+      LEFT JOIN dbo.TrainingPlanMaster tpm
+        ON tpm.plan_master_id = TP.plan_master_id
+      LEFT JOIN dbo.SKILL_AREA sa
+        ON sa.ID = COALESCE(TP.Skill_Area_Id, tpm.skill_area_id)
       WHERE TP.IsActive = 1
-        AND (TP.status = 0 OR TP.status = 1)
+        AND CONVERT(NVARCHAR(20), TP.status) IN ('Pending', 'Approved', 'Rejected', '0', '1')
       ORDER BY
-        CASE WHEN TP.status = 1 THEN 0 ELSE 1 END,
+        CASE
+          WHEN CONVERT(NVARCHAR(20), TP.status) IN ('Pending', '1') AND TP.reviewed_at IS NULL THEN 0
+          ELSE 1
+        END,
         TP.created_at DESC
     `);
 
@@ -143,6 +184,8 @@ export async function POST(req: Request) {
 
     const pool = await sql.connect(config);
     await ensureTrainingPlanSchema(pool);
+    const isBitStatus = await isTrainingPlanStatusBit(pool);
+    const updatedBy = String(currentUser.employeeCode ?? currentUser.username ?? "").slice(0, 20);
 
     for (const record of records) {
       const sourceId = Number(record.plan_id);
@@ -151,10 +194,12 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Update the plan status to Pending (string value)
-      await pool.request()
+      const request = pool.request();
+      inputTrainingPlanStatus(request, isBitStatus, "Pending");
+
+      await request
         .input("plan_id", sql.Int, sourceId)
-        .input("status", sql.NVarChar(20), "Pending")
+        .input("upby", sql.VarChar(20), updatedBy)
         .query(`
           UPDATE dbo.TrainingPlan
           SET status = @status,
@@ -167,8 +212,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("TRAINING PLAN AUTH POST ERROR:", error);
+    const message = error instanceof Error ? error.message : "Failed to submit authorization request";
     return NextResponse.json(
-      { error: "Failed to submit authorization request" },
+      { error: message },
       { status: 500 },
     );
   }
@@ -192,10 +238,10 @@ export async function PATCH(req: Request) {
     }
 
     const { id, action } = await req.json();
-    const normalizedAction =
+    const status =
       action === "approve" ? "Approved" : action === "reject" ? "Rejected" : "";
 
-    if (!id || !normalizedAction) {
+    if (!id || !status) {
       return NextResponse.json(
         { error: "Invalid review request" },
         { status: 400 },
@@ -204,10 +250,13 @@ export async function PATCH(req: Request) {
 
     const pool = await sql.connect(config);
     await ensureTrainingPlanSchema(pool);
+    const isBitStatus = await isTrainingPlanStatusBit(pool);
 
-    await pool.request()
+    const request = pool.request();
+    inputTrainingPlanStatus(request, isBitStatus, status);
+
+    await request
       .input("plan_id", sql.Int, Number(id))
-      .input("status", sql.NVarChar(20), normalizedAction)
       .input(
         "reviewed_by",
         sql.VarChar(20),

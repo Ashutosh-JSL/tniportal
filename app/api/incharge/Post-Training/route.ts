@@ -124,6 +124,8 @@ export async function GET() {
           t.source_plan_id,
           t.plan_desc,
           t.project_skill_names,
+          COALESCE(tp.Skill_Area_Id, tpm.skill_area_id) AS skill_area_id,
+          sa.SKILL_AREA AS skill_area_name,
           COALESCE(
             NULLIF(LTRIM(RTRIM(t.target_outcome)), ''),
             CASE WHEN t.effectiveness_desired IS NULL THEN NULL ELSE CAST(t.effectiveness_desired AS NVARCHAR(50)) END
@@ -156,6 +158,12 @@ export async function GET() {
         FROM dbo.Post_training_plan t
         LEFT JOIN dbo.Employees e
           ON t.employee_id = e.emp_code
+        LEFT JOIN dbo.TrainingPlan tp
+          ON tp.plan_id = t.source_plan_id
+        LEFT JOIN dbo.TrainingPlanMaster tpm
+          ON tpm.plan_master_id = tp.plan_master_id
+        LEFT JOIN dbo.SKILL_AREA sa
+          ON sa.ID = COALESCE(tp.Skill_Area_Id, tpm.skill_area_id)
         WHERE ISNULL(t.IsActive, 1) = 1
           AND (t.crby = @user_id OR t.upby = @user_id)
         ORDER BY t.created_at DESC, t.plan_id DESC

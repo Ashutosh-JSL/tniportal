@@ -432,8 +432,6 @@ export default function TrainingPlanSkillPage() {
                     const gap = Math.max(rawGap, 0);
                     const authorizationStatus =
                       authorizationStatusByRecordId[record.id];
-                    const isPendingAuthorization =
-                      authorizationStatus === "Pending";
                     const gapClass =
                       rawGap > 0
                         ? "bg-red-100 text-red-700"
@@ -445,22 +443,22 @@ export default function TrainingPlanSkillPage() {
                       <tr key={record.id} className="transition hover:bg-cyan-50/55">
                         {activeRole === "Incharge" ? (
                           <td className="px-4 py-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedRecordIds.includes(record.id)}
-                              disabled={isPendingAuthorization}
-                              onChange={() => toggleRecordSelection(record.id)}
-                              className="h-4 w-4"
-                            />
                             {authorizationStatus ? (
                               <div
-                                className={`mt-1 text-[11px] font-medium ${getStatusTextClass(
+                                className={`text-[11px] font-medium ${getStatusTextClass(
                                   authorizationStatus,
                                 )}`}
                               >
                                 {authorizationStatus}
                               </div>
-                            ) : null}
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={selectedRecordIds.includes(record.id)}
+                                onChange={() => toggleRecordSelection(record.id)}
+                                className="h-4 w-4"
+                              />
+                            )}
                           </td>
                         ) : null}
 

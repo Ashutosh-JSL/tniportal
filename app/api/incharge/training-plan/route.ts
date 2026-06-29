@@ -76,6 +76,32 @@ async function ensureTrainingPlanSchema(pool: sql.ConnectionPool) {
   `);
 }
 
+async function isTrainingPlanStatusBit(pool: sql.ConnectionPool) {
+  const result = await pool.request().query(`
+    SELECT TOP 1 t.name AS data_type
+    FROM sys.columns c
+    JOIN sys.types t ON c.user_type_id = t.user_type_id
+    WHERE c.object_id = OBJECT_ID('dbo.TrainingPlan')
+      AND c.name = 'status'
+  `);
+
+  return result.recordset[0]?.data_type === "bit";
+}
+
+function inputTrainingPlanStatus(
+  request: sql.Request,
+  isBitStatus: boolean,
+  status: "Pending" | "Approved" | "Rejected" | null,
+) {
+  if (isBitStatus) {
+    request.input("status", sql.Bit, status === "Rejected" ? 0 : 1);
+    return request;
+  }
+
+  request.input("status", sql.NVarChar(20), status);
+  return request;
+}
+
 async function isApprovedPlanHeading(
   pool: sql.ConnectionPool,
   planHeading: unknown,
@@ -157,6 +183,7 @@ export async function POST(req: Request) {
 
     const pool = await sql.connect(config);
     await ensureTrainingPlanSchema(pool);
+    const isBitStatus = await isTrainingPlanStatusBit(pool);
 
     // Get plan_master_id from plan_desc if not provided
     let finalPlanMasterId: number | null = plan_master_id || null;
@@ -178,7 +205,10 @@ export async function POST(req: Request) {
       );
     }
 
-    await pool.request()
+    const request = pool.request();
+    inputTrainingPlanStatus(request, isBitStatus, null);
+
+    await request
       .input("employee_id", sql.VarChar(50), employee_id)
       .input("plan_desc", sql.VarChar(255), plan_desc || null)
       .input("year", sql.VarChar(10), year || null)
@@ -189,7 +219,6 @@ export async function POST(req: Request) {
       .input("project_skill_names", sql.NVarChar(sql.MAX), normalizedProjectSkills || null)
       .input("skill_area_id", sql.Int, finalSkillAreaId || null)
       .input("plan_master_id", sql.Int, finalPlanMasterId)
-      .input("status", sql.NVarChar(20), "Pending") // All new plans start as Pending
       .input("CrBy", sql.VarChar(20), userId)
       .input("UpBy", sql.VarChar(20), userId)
       .query(`
@@ -239,7 +268,8 @@ export async function POST(req: Request) {
 
   } catch (error) {
     console.error("POST ERROR:", error);
-    return NextResponse.json([], { status: 500 });
+    const message = error instanceof Error ? error.message : "Training plan save failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -278,10 +308,26 @@ export async function GET(req: Request) {
         TP.project_skill_names,
         TP.plan_master_id,
         E.emp_name,
-        tpm.skill_area_id,
+        COALESCE(TP.Skill_Area_Id, tpm.skill_area_id) AS skill_area_id,
         sa.SKILL_AREA AS skill_area_name,
-        TP.status,
-        CASE WHEN TP.status = 1 THEN 'Pending' ELSE 'Rejected' END AS display_status,
+        CASE
+          WHEN CONVERT(NVARCHAR(20), TP.status) = 'Approved' THEN 'Approved'
+        WHEN CONVERT(NVARCHAR(20), TP.status) = 'Rejected' THEN 'Rejected'
+        WHEN CONVERT(NVARCHAR(20), TP.status) = '0' THEN 'Rejected'
+        WHEN CONVERT(NVARCHAR(20), TP.status) = '1' AND TP.reviewed_at IS NOT NULL THEN 'Approved'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = '1' THEN 'Pending'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = 'Pending' THEN 'Pending'
+          ELSE NULL
+        END AS status,
+        CASE
+          WHEN CONVERT(NVARCHAR(20), TP.status) = 'Approved' THEN 'Approved'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = 'Rejected' THEN 'Rejected'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = '0' THEN 'Rejected'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = '1' AND TP.reviewed_at IS NOT NULL THEN 'Approved'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = '1' THEN 'Pending'
+          WHEN CONVERT(NVARCHAR(20), TP.status) = 'Pending' THEN 'Pending'
+          ELSE NULL
+        END AS display_status,
         TP.reviewed_by,
         TP.reviewed_at
       FROM dbo.TrainingPlan TP
@@ -359,6 +405,7 @@ export async function PUT(req: Request) {
 
     const pool = await sql.connect(config);
     await ensureTrainingPlanSchema(pool);
+    const isBitStatus = await isTrainingPlanStatusBit(pool);
 
     if (!(await isApprovedPlanHeading(pool, plan_desc))) {
       return NextResponse.json(
@@ -381,8 +428,10 @@ export async function PUT(req: Request) {
       finalPlanMasterId = masterData?.plan_master_id || null;
     }
 
-    // Reset status to Pending when editing
-    await pool.request()
+    const request = pool.request();
+    inputTrainingPlanStatus(request, isBitStatus, null);
+
+    await request
       .input("plan_id", sql.Int, plan_id)
       .input("employee_id", sql.VarChar(50), employee_id)
       .input("plan_desc", sql.NVarChar(255), plan_desc)
@@ -394,7 +443,6 @@ export async function PUT(req: Request) {
       .input("project_skill_names", sql.NVarChar(sql.MAX), normalizedProjectSkills || null)
       .input("skill_area_id", sql.Int, skillAreaIdValue || null)
       .input("plan_master_id", sql.Int, finalPlanMasterId)
-      .input("status", sql.NVarChar(20), "Pending") // Reset to Pending when editing
       .input("UpBy", sql.VarChar(20), userId)
       .query(`
         UPDATE dbo.TrainingPlan
@@ -418,7 +466,8 @@ export async function PUT(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("PUT ERROR:", error);
-    return NextResponse.json([], { status: 500 });
+    const message = error instanceof Error ? error.message : "Training plan update failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -435,10 +484,13 @@ export async function DELETE(req: Request) {
 
     const pool = await sql.connect(config);
     await ensureTrainingPlanSchema(pool);
+    const isBitStatus = await isTrainingPlanStatusBit(pool);
 
-    await pool.request()
+    const request = pool.request();
+    inputTrainingPlanStatus(request, isBitStatus, "Rejected");
+
+    await request
       .input("plan_id", sql.Int, plan_id)
-      .input("status", sql.NVarChar(20), "Rejected") // Rejected status
       .input("UpBy", sql.VarChar(20), userId)
       .query(`
         UPDATE dbo.TrainingPlan
@@ -468,10 +520,10 @@ export async function PATCH(req: Request) {
     }
 
     const { plan_id, action } = await req.json();
-    const normalizedAction =
+    const status =
       action === "approve" ? "Approved" : action === "reject" ? "Rejected" : "";
 
-    if (!plan_id || !normalizedAction) {
+    if (!plan_id || !status) {
       return NextResponse.json(
         { error: "Plan id and valid action are required" },
         { status: 400 },
@@ -480,10 +532,13 @@ export async function PATCH(req: Request) {
 
     const pool = await sql.connect(config);
     await ensureTrainingPlanSchema(pool);
+    const isBitStatus = await isTrainingPlanStatusBit(pool);
 
-    await pool.request()
+    const request = pool.request();
+    inputTrainingPlanStatus(request, isBitStatus, status);
+
+    await request
       .input("plan_id", sql.Int, Number(plan_id))
-      .input("status", sql.NVarChar(20), normalizedAction)
       .input(
         "reviewed_by",
         sql.VarChar(20),

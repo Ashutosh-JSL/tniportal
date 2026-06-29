@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface Employee {
   emp_code: string;
@@ -10,6 +10,7 @@ interface Employee {
 interface Skill {
   skill_id: number;
   skill_name: string;
+  skill_area_id?: number | null;
 }
 
 interface Plan {
@@ -24,7 +25,10 @@ interface Plan {
   plan_type: string | null;
   project_skill_names: string | null;
   plan_master_id?: number | null;
-  status?: AuthorizationStatus;
+  skill_area_id?: number | null;
+  skill_area_name?: string | null;
+  status?: AuthorizationStatus | null;
+  display_status?: AuthorizationStatus | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
 }
@@ -36,15 +40,7 @@ interface PlanMaster {
   skill_area_name?: string | null;
 }
 
-// Authorization status: nvarchar values (Pending, Approved, Rejected)
 type AuthorizationStatus = "Pending" | "Approved" | "Rejected";
-
-interface PlanWithAuth extends Plan {
-  status?: AuthorizationStatus;
-  display_status?: string; // String version for display (will use status directly)
-  reviewed_by?: string | null;
-  reviewed_at?: string | null;
-}
 
 type FormState = {
   plan_desc: string;
@@ -90,7 +86,6 @@ export default function TrainingPlanPage() {
   const [skillAreas, setSkillAreas] = useState<SkillArea[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planHeadings, setPlanHeadings] = useState<PlanMaster[]>([]);
-  const [filteredPlanHeadings, setFilteredPlanHeadings] = useState<PlanMaster[]>([]);
   const [selectedSkillAreaId, setSelectedSkillAreaId] = useState<string>("");
   const [planType, setPlanType] = useState<PlanType>("Training");
   const [formData, setFormData] = useState<FormState>(emptyForm);
@@ -111,19 +106,26 @@ export default function TrainingPlanPage() {
 
     const data = await res.json();
     setPlans(Array.isArray(data) ? data : []);
-  }, [planType]);
+  }, []);
 
-  // Filter plan headings based on selected skill area
-  useEffect(() => {
+  const filteredPlanHeadings = useMemo(() => {
     if (!selectedSkillAreaId || selectedSkillAreaId === "null" || selectedSkillAreaId === "") {
-      setFilteredPlanHeadings(planHeadings);
-      return;
+      return planHeadings;
     }
-    const filtered = planHeadings.filter(
+    return planHeadings.filter(
       (plan) => String(plan.skill_area_id || "") === selectedSkillAreaId
     );
-    setFilteredPlanHeadings(filtered);
   }, [selectedSkillAreaId, planHeadings]);
+
+  const filteredSkills = useMemo(() => {
+    if (!selectedSkillAreaId || selectedSkillAreaId === "null" || selectedSkillAreaId === "") {
+      return skills;
+    }
+
+    return skills.filter(
+      (skill) => String(skill.skill_area_id || "") === selectedSkillAreaId,
+    );
+  }, [selectedSkillAreaId, skills]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -155,8 +157,6 @@ export default function TrainingPlanPage() {
   const modeLabel =
     planType === "Project" ? "Project Training Plan Entry" : "Training Plan Entry";
   const planLabel = planType === "Project" ? "Project Plan" : "Plan";
-  const saveLabel =
-    planType === "Project" ? "Save Project Training Plan" : "Save Training Plan";
 
   const setPlanMode = (nextType: PlanType) => {
     setPlanType(nextType);
@@ -258,7 +258,8 @@ export default function TrainingPlanPage() {
     });
 
     if (!res.ok) {
-      alert("Something went wrong while saving");
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "Something went wrong while saving");
       return;
     }
 
@@ -278,6 +279,7 @@ export default function TrainingPlanPage() {
     }
 
     setEditingId(plan.plan_id);
+    setSelectedSkillAreaId(String(plan.skill_area_id ?? ""));
     setEditForm({
       plan_desc: plan.plan_desc ?? "",
       employee_id: plan.employee_id ?? "",
@@ -368,14 +370,16 @@ export default function TrainingPlanPage() {
       return;
     }
 
-    // For each plan, send a PATCH request to update status to 'Pending'
-    // Since all plans are already in TrainingPlan table, this just resets their status
-    for (const record of selectedRecords) {
-      await fetch("/api/incharge/training-plan", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan_id: record.plan_id, action: "pending" }),
-      });
+    const res = await fetch("/api/incharge/training-plan-authorization", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records: selectedRecords }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "Unable to send selected rows for admin authorization");
+      return;
     }
 
     alert("Selected rows marked as pending for admin review");
@@ -383,12 +387,14 @@ export default function TrainingPlanPage() {
     await loadPlans();
   };
 
-  const getStatusTextClass = (status: string | null) =>
+  const getStatusTextClass = (status: AuthorizationStatus | null) =>
     status === "Pending"
       ? "text-amber-600"
       : status === "Approved"
-        ? "text-green-600"
+        ? "text-emerald-600"
         : status === "Rejected" ? "text-red-600" : "text-slate-400";
+
+  const getStatusText = (status: AuthorizationStatus | null) => status ?? "-";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
@@ -436,6 +442,24 @@ export default function TrainingPlanPage() {
                 Step 1: Select Skill Area & Training Plan
               </h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+<div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Employee Name *</label>
+                  <select
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                    value={formData.employee_id}
+                    onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map((emp) => (
+                      <option key={emp.emp_code} value={emp.emp_code}>
+                        {emp.emp_name} ({emp.emp_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label htmlFor="skill_area_id" className="mb-2 block text-sm font-medium text-slate-700">
                     Skill Area *
@@ -444,7 +468,16 @@ export default function TrainingPlanPage() {
                     id="skill_area_id"
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
                     value={selectedSkillAreaId}
-                    onChange={(e) => setSelectedSkillAreaId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedSkillAreaId(e.target.value);
+                      setFormData({
+                        ...formData,
+                        plan_desc: "",
+                        project_skill_names: "",
+                        plan_master_id: "",
+                      });
+                      setSelectedProjectSkillNames([]);
+                    }}
                     required
                   >
                     <option value="">Select Skill Area</option>
@@ -455,6 +488,9 @@ export default function TrainingPlanPage() {
                     ))}
                   </select>
                 </div>
+
+
+                
 
                 <div className="flex items-end">
                   <div className="w-full rounded-lg border border-cyan-100 bg-cyan-50/80 px-4 py-3">
@@ -483,8 +519,10 @@ export default function TrainingPlanPage() {
                       setFormData({
                         ...formData,
                         plan_desc: selectedPlan?.plan_Heading || "",
+                        project_skill_names: "",
                         plan_master_id: String(selectedPlan?.plan_master_id || ""),
                       });
+                      setSelectedProjectSkillNames([]);
                     }}
                     required
                   >
@@ -499,6 +537,62 @@ export default function TrainingPlanPage() {
                     ))}
                   </select>
                 </div>
+
+                
+
+                {planType === "Project" && (
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Skills (Select at least one) *
+                    </label>
+                    <select
+                      className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                      value=""
+                      onChange={(e) => {
+                        const skillId = Number(e.target.value);
+                        if (Number.isFinite(skillId)) {
+                          addProjectSkill(skillId, false);
+                        }
+                      }}
+                      required={selectedProjectSkillNames.length === 0}
+                    >
+                      <option value="">Select Skill</option>
+                      {filteredSkills.length === 0 && selectedSkillAreaId ? (
+                        <option disabled>No skills available for this skill area</option>
+                      ) : null}
+                      {filteredSkills.map((skill) => (
+                        <option
+                          key={skill.skill_id}
+                          value={skill.skill_id}
+                          disabled={selectedProjectSkillNames.includes(skill.skill_name)}
+                        >
+                          {skill.skill_name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedProjectSkillNames.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedProjectSkillNames.map((skillName) => (
+                          <span
+                            key={skillName}
+                            className="flex items-center gap-1.5 rounded-full bg-cyan-100 px-3 py-1.5 text-sm font-medium text-cyan-800"
+                          >
+                            {skillName}
+                            <button
+                              type="button"
+                              onClick={() => removeProjectSkill(skillName, false)}
+                              className="font-bold text-cyan-600 hover:text-cyan-900"
+                              aria-label={`Remove ${skillName}`}
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -508,29 +602,14 @@ export default function TrainingPlanPage() {
                 Step 2: Enter Plan Details
               </h3>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Employee Name *</label>
-                  <select
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
-                    value={formData.employee_id}
-                    onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                    required
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map((emp) => (
-                      <option key={emp.emp_code} value={emp.emp_code}>
-                        {emp.emp_name} ({emp.emp_code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                
 
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">Year</label>
                   <input
                     type="text"
                     maxLength={4}
-                    placeholder="2026"
+                    placeholder="e.g., 2026"
                     className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
                     value={formData.year}
                     onChange={(e) => setFormData({ ...formData, year: e.target.value })}
@@ -573,43 +652,6 @@ export default function TrainingPlanPage() {
                   />
                 </div>
               </div>
-
-              {planType === "Project" && (
-                <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-                  <label className="block text-sm font-medium text-slate-700">Skills (Select at least one)</label>
-                  <div className="flex flex-wrap gap-2">
-                    {skills.map((skill) => (
-                      <button
-                        key={skill.skill_id}
-                        type="button"
-                        onClick={() => addProjectSkill(skill.skill_id, false)}
-                        className="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-cyan-400 hover:bg-cyan-50"
-                      >
-                        + {skill.skill_name}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedProjectSkillNames.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {selectedProjectSkillNames.map((skillName) => (
-                        <span
-                          key={skillName}
-                          className="flex items-center gap-1.5 rounded-full bg-cyan-100 px-3 py-1.5 text-sm font-medium text-cyan-800"
-                        >
-                          {skillName}
-                          <button
-                            type="button"
-                            onClick={() => removeProjectSkill(skillName, false)}
-                            className="font-bold text-cyan-600 hover:text-cyan-900"
-                          >
-                            x
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Submit Button */}
@@ -655,56 +697,70 @@ export default function TrainingPlanPage() {
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <table className="min-w-[1320px] table-fixed divide-y divide-slate-200 text-sm">
+              <colgroup>
+                {activeRole === "Incharge" ? <col className="w-24" /> : null}
+                <col className="w-64" />
+                <col className="w-40" />
+                <col className="w-52" />
+                <col className="w-56" />
+                <col className="w-44" />
+                <col className="w-32" />
+                <col className="w-32" />
+                <col className="w-24" />
+                <col className="w-44" />
+              </colgroup>
               <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
-                <tr className="text-center">
+                <tr>
                   {activeRole === "Incharge" ? (
-                    <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Select</th>
+                    <th className="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Select</th>
                   ) : null}
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">{planLabel}</th>
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Employee</th>
-                  {planType === "Project" ? (
-                    <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Skill(s)</th>
-                  ) : null}
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Responsible</th>
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Target Date</th>
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Location</th>
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Year</th>
-                  <th className="px-3 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Action</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">{planLabel}</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Skill Area</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Employee</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Skill(s)</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Responsible</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Target Date</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Location</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Year</th>
+                  <th className="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Action</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-100 bg-white text-center">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {plans.length ? (
                   plans.map((plan) => {
-                    // Authorization status is stored directly on the plan object (nvarchar: Pending, Approved, Rejected)
-                    const authorizationStatus = plan.status || "Pending";
-                    const isPendingAuthorization = authorizationStatus === "Pending";
+                    const authorizationStatus =
+                      plan.display_status ?? plan.status ?? null;
+                    const canSelectForAuthorization =
+                      authorizationStatus === null || authorizationStatus === "Rejected";
 
                     return (
                       <tr key={plan.plan_id} className="transition hover:bg-cyan-50/55">
                       {activeRole === "Incharge" ? (
-                        <td className="p-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedPlanIds.includes(plan.plan_id)}
-                            disabled={!isPendingAuthorization}
-                            onChange={() => togglePlanSelection(plan.plan_id)}
-                            className="h-4 w-4"
-                          />
-                          {authorizationStatus && (
+                        <td className="p-3 text-center align-top">
+                          {canSelectForAuthorization ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedPlanIds.includes(plan.plan_id)}
+                              onChange={() => togglePlanSelection(plan.plan_id)}
+                              className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                              aria-label={`Select ${plan.plan_desc} for admin authorization`}
+                            />
+                          ) : null}
+                          {authorizationStatus !== null && (
                             <div
                               className={`mt-1 text-[11px] font-medium ${getStatusTextClass(
                                 authorizationStatus,
                               )}`}
                             >
-                              {authorizationStatus}
+                              {getStatusText(authorizationStatus)}
                             </div>
                           )}
                         </td>
                       ) : null}
 
-                      <td className="p-3">
+                      <td className="p-3 align-top text-slate-700">
                         {editingId === plan.plan_id ? (
                           <select
                             className="w-full rounded border px-2 py-1"
@@ -716,6 +772,7 @@ export default function TrainingPlanPage() {
                               setEditForm({
                                 ...editForm,
                                 plan_desc: selectedPlan?.plan_Heading || "",
+                                plan_master_id: String(selectedPlan?.plan_master_id || ""),
                               });
                             }}
                           >
@@ -727,11 +784,19 @@ export default function TrainingPlanPage() {
                             ))}
                           </select>
                         ) : (
-                          plan.plan_desc
+                          <span className="block whitespace-normal break-words text-left leading-5">
+                            {plan.plan_desc}
+                          </span>
                         )}
                       </td>
 
-                      <td className="p-3">
+                      <td className="p-3 align-top text-slate-700">
+                        <span className="block whitespace-normal break-words text-left leading-5">
+                          {plan.skill_area_name || "-"}
+                        </span>
+                      </td>
+
+                      <td className="p-3 align-top text-slate-700">
                         {editingId === plan.plan_id ? (
                           <select
                             className="w-full rounded border px-2 py-1"
@@ -748,13 +813,14 @@ export default function TrainingPlanPage() {
                             ))}
                           </select>
                         ) : (
-                          plan.emp_name
+                          <span className="block whitespace-normal break-words text-left leading-5">
+                            {plan.emp_name}
+                          </span>
                         )}
                       </td>
 
-                      {planType === "Project" ? (
-                        <td className="p-3">
-                          {editingId === plan.plan_id ? (
+                        <td className="p-3 align-top text-slate-700">
+                          {editingId === plan.plan_id && getPlanType(plan.plan_type) === "Project" ? (
                             <div className="space-y-2">
                               <select
                                 className="w-full rounded border px-2 py-1"
@@ -764,8 +830,12 @@ export default function TrainingPlanPage() {
                                 }
                               >
                                 <option value="">Select Skill</option>
-                                {skills.map((skill) => (
-                                  <option key={skill.skill_id} value={skill.skill_id}>
+                                {filteredSkills.map((skill) => (
+                                  <option
+                                    key={skill.skill_id}
+                                    value={skill.skill_id}
+                                    disabled={editSelectedProjectSkillNames.includes(skill.skill_name)}
+                                  >
                                     {skill.skill_name}
                                   </option>
                                 ))}
@@ -792,12 +862,13 @@ export default function TrainingPlanPage() {
                               ) : null}
                             </div>
                           ) : (
-                            plan.project_skill_names || "-"
+                            <span className="block whitespace-normal break-words text-left leading-5">
+                              {plan.project_skill_names || "-"}
+                            </span>
                           )}
                         </td>
-                      ) : null}
 
-                      <td className="p-3">
+                      <td className="p-3 align-top text-slate-700">
                         {editingId === plan.plan_id ? (
                           <input
                             className="w-full rounded border px-2 py-1"
@@ -810,11 +881,13 @@ export default function TrainingPlanPage() {
                             }
                           />
                         ) : (
-                          plan.responsible_person
+                          <span className="block whitespace-normal break-words text-left leading-5">
+                            {plan.responsible_person}
+                          </span>
                         )}
                       </td>
 
-                      <td className="p-3">
+                      <td className="p-3 align-top text-slate-700">
                         {editingId === plan.plan_id ? (
                           <input
                             type="date"
@@ -832,7 +905,7 @@ export default function TrainingPlanPage() {
                         )}
                       </td>
 
-                      <td className="p-3">
+                      <td className="p-3 align-top text-slate-700">
                         {editingId === plan.plan_id ? (
                           <select
                             className="w-full rounded border px-2 py-1"
@@ -854,7 +927,7 @@ export default function TrainingPlanPage() {
                         )}
                       </td>
 
-                      <td className="p-3">
+                      <td className="p-3 align-top text-slate-700">
                         {editingId === plan.plan_id ? (
                           <input
                             className="w-full rounded border px-2 py-1"
@@ -868,9 +941,9 @@ export default function TrainingPlanPage() {
                         )}
                       </td>
 
-                      <td className="p-3 space-x-2">
+                      <td className="p-3 align-top">
                         {editingId === plan.plan_id ? (
-                          <>
+                          <div className="flex flex-wrap justify-center gap-2">
                             <button
                               type="button"
                               onClick={() => saveEdit(plan.plan_id)}
@@ -885,9 +958,9 @@ export default function TrainingPlanPage() {
                             >
                               Cancel
                             </button>
-                          </>
+                          </div>
                         ) : (
-                          <>
+                          <div className="flex flex-wrap justify-center gap-2">
                             <button
                               type="button"
                               onClick={() => startEdit(plan)}
@@ -902,7 +975,7 @@ export default function TrainingPlanPage() {
                             >
                               Delete
                             </button>
-                          </>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -912,9 +985,8 @@ export default function TrainingPlanPage() {
                   <tr>
                     <td
                       colSpan={
-                        7 +
-                        (activeRole === "Incharge" ? 1 : 0) +
-                        (planType === "Project" ? 1 : 0)
+                        9 +
+                        (activeRole === "Incharge" ? 1 : 0)
                       }
                       className="px-4 py-10 text-center text-sm text-slate-500"
                     >

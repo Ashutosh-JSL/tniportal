@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type AuthorizationItem = {
   id: number;
@@ -8,6 +8,8 @@ type AuthorizationItem = {
   emp_code: string;
   emp_name: string;
   plan_desc: string;
+  skill_area_id: number | null;
+  skill_area_name: string | null;
   plan_type: string | null;
   project_skill_names: string | null;
   year: string | null;
@@ -31,7 +33,7 @@ export default function TrainingPlanAuthorizationPage() {
 
   const isAdmin = activeRole.trim().toLowerCase() === "admin";
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     if (!isAdmin) return;
 
     setLoading(true);
@@ -45,7 +47,7 @@ export default function TrainingPlanAuthorizationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -55,7 +57,7 @@ export default function TrainingPlanAuthorizationPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [isAdmin]);
+  }, [isAdmin, loadItems]);
 
   const reviewRequest = async (id: number, action: "approve" | "reject") => {
     const res = await fetch("/api/incharge/training-plan-authorization", {
@@ -97,6 +99,7 @@ export default function TrainingPlanAuthorizationPage() {
       "Employee Code",
       "Employee Name",
       "Plan",
+      "Skill Area",
       "Plan Type",
       "Skill(s)",
       "Responsible Person",
@@ -115,6 +118,7 @@ export default function TrainingPlanAuthorizationPage() {
       item.emp_code,
       item.emp_name,
       item.plan_desc,
+      item.skill_area_name ?? "",
       item.plan_type ?? "Training",
       item.project_skill_names ?? "",
       item.responsible_person ?? "",
@@ -215,7 +219,7 @@ export default function TrainingPlanAuthorizationPage() {
       ? "bg-amber-100 text-amber-800"
       : status === "Approved"
         ? "bg-green-100 text-green-700"
-        : "bg-red-100 text-red-700";
+        : status === "Rejected" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700";
 
   const getPlanTypeClass = (type: string | null) =>
     type === "Project"
@@ -291,6 +295,9 @@ export default function TrainingPlanAuthorizationPage() {
                       Plan
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Skill Area
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Type
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -321,7 +328,7 @@ export default function TrainingPlanAuthorizationPage() {
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={11}
                         className="px-4 py-10 text-center text-sm text-slate-500"
                       >
                         No authorization requests found.
@@ -340,6 +347,9 @@ export default function TrainingPlanAuthorizationPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">
                           {item.plan_desc}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.skill_area_name || "-"}
                         </td>
                         <td className="px-4 py-3">
                           <span

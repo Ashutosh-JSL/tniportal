@@ -14,6 +14,16 @@ async function ensureTrainingPlanSchema(pool: sql.ConnectionPool) {
     BEGIN
       ALTER TABLE dbo.TrainingPlan ADD project_skill_names NVARCHAR(MAX) NULL
     END
+
+    IF COL_LENGTH('dbo.TrainingPlan', 'plan_master_id') IS NULL
+    BEGIN
+      ALTER TABLE dbo.TrainingPlan ADD plan_master_id INT NULL
+    END
+
+    IF COL_LENGTH('dbo.TrainingPlan', 'Skill_Area_Id') IS NULL
+    BEGIN
+      ALTER TABLE dbo.TrainingPlan ADD Skill_Area_Id INT NULL
+    END
   `);
 }
 
@@ -32,18 +42,24 @@ export async function GET(req: NextRequest) {
       .input("empId", sql.VarChar(20), empId)
       .query(`
         SELECT
-          plan_id,
-          plan_desc,
-          year,
-          responsible_person,
-          target_date,
-          training_location,
-          ISNULL(plan_type, 'Training') AS plan_type,
-          project_skill_names
-        FROM dbo.TrainingPlan
-        WHERE employee_id = @empId
-          AND ISNULL(IsActive, 1) = 1
-        ORDER BY plan_id DESC
+          TP.plan_id,
+          TP.plan_desc,
+          TP.year,
+          TP.responsible_person,
+          TP.target_date,
+          TP.training_location,
+          COALESCE(TP.Skill_Area_Id, tpm.skill_area_id) AS skill_area_id,
+          sa.SKILL_AREA AS skill_area_name,
+          ISNULL(TP.plan_type, 'Training') AS plan_type,
+          TP.project_skill_names
+        FROM dbo.TrainingPlan TP
+        LEFT JOIN dbo.TrainingPlanMaster tpm
+          ON tpm.plan_master_id = TP.plan_master_id
+        LEFT JOIN dbo.SKILL_AREA sa
+          ON sa.ID = COALESCE(TP.Skill_Area_Id, tpm.skill_area_id)
+        WHERE LTRIM(RTRIM(TP.employee_id)) = LTRIM(RTRIM(@empId))
+          AND ISNULL(TP.IsActive, 1) = 1
+        ORDER BY TP.plan_id DESC
       `);
 
     return NextResponse.json(result.recordset || []);
