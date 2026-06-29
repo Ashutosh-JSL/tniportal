@@ -89,7 +89,9 @@ export default function PostTrainingPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<FormState>(emptyForm);
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([]);
-  const [submittedPlanIds, setSubmittedPlanIds] = useState<string[]>([]);
+  const [authorizationStatusByRowKey, setAuthorizationStatusByRowKey] = useState<
+    Record<string, string>
+  >({});
   const [activeRole] = useState(() =>
     typeof window === "undefined" ? "" : localStorage.getItem("activeRole") ?? "",
   );
@@ -109,23 +111,31 @@ export default function PostTrainingPage() {
 
     setPlans(Array.isArray(plansData) ? plansData : []);
 
-    const pendingIds = Array.isArray(authorizationData)
-      ? authorizationData
-          .filter(
-            (item: AuthorizationItem) =>
-              item.status === "Pending" &&
-              Boolean(item.source_row_key),
-          )
-          .flatMap((item: AuthorizationItem) => {
-            const key = String(item.source_row_key);
-            if (key.startsWith("T|") || key.startsWith("P|")) {
-              return [key];
-            }
-            return [key, `T|${key}`];
-          })
-      : [];
+    const nextStatusByRowKey: Record<string, string> = {};
 
-    setSubmittedPlanIds(pendingIds);
+    if (Array.isArray(authorizationData)) {
+      for (const item of authorizationData as AuthorizationItem[]) {
+        const key = String(item.source_row_key ?? "").trim();
+        const status = String(item.status ?? "").trim();
+
+        if (!key || !status) {
+          continue;
+        }
+
+        if (!nextStatusByRowKey[key]) {
+          nextStatusByRowKey[key] = status;
+        }
+
+        if (!key.startsWith("T|") && !key.startsWith("P|")) {
+          const trainingPrefixedKey = `T|${key}`;
+          if (!nextStatusByRowKey[trainingPrefixedKey]) {
+            nextStatusByRowKey[trainingPrefixedKey] = status;
+          }
+        }
+      }
+    }
+
+    setAuthorizationStatusByRowKey(nextStatusByRowKey);
   };
 
   useEffect(() => {
@@ -297,6 +307,13 @@ export default function PostTrainingPage() {
     setSelectedPlanIds([]);
     await loadPlans();
   };
+
+  const getStatusTextClass = (status: string) =>
+    status === "Pending"
+      ? "text-amber-600"
+      : status === "Approved"
+        ? "text-green-600"
+        : "text-red-600";
 
   const getNumericGap = (targetValue: string, actualValue: string) => {
     const target = Number(targetValue);
@@ -653,6 +670,10 @@ export default function PostTrainingPage() {
                   editForm.effectiveness_desired,
                   editForm.effectiveness_actual,
                 );
+                const authorizationStatus =
+                  authorizationStatusByRowKey[plan.row_key];
+                const isPendingAuthorization =
+                  authorizationStatus === "Pending";
 
                 return (
                   <tr
@@ -664,13 +685,17 @@ export default function PostTrainingPage() {
                         <input
                           type="checkbox"
                           checked={selectedPlanIds.includes(plan.row_key)}
-                          disabled={submittedPlanIds.includes(plan.row_key)}
+                          disabled={isPendingAuthorization}
                           onChange={() => togglePlanSelection(plan.row_key)}
                           className="h-4 w-4"
                         />
-                        {submittedPlanIds.includes(plan.row_key) ? (
-                          <div className="mt-1 text-[11px] font-medium text-amber-600">
-                            Pending
+                        {authorizationStatus ? (
+                          <div
+                            className={`mt-1 text-[11px] font-medium ${getStatusTextClass(
+                              authorizationStatus,
+                            )}`}
+                          >
+                            {authorizationStatus}
                           </div>
                         ) : null}
                       </td>

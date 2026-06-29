@@ -7,6 +7,7 @@ type AuthorizationItem = {
   source_mapping_id: number | null;
   emp_code: string;
   emp_name: string;
+  skill_area: string | null;
   skill_name: string;
   desired_level: number;
   actual_level: number;
@@ -84,6 +85,7 @@ export default function SkillAuthorizationPage() {
     const headers = [
       "Employee Code",
       "Employee Name",
+      "Skill Area",
       "Skill",
       "Desired Level",
       "Actual Level",
@@ -99,6 +101,7 @@ export default function SkillAuthorizationPage() {
     const rows = items.map((item, index) => [
       item.emp_code,
       item.emp_name,
+      item.skill_area ?? "",
       item.skill_name,
       item.desired_level,
       item.actual_level,
@@ -259,6 +262,9 @@ export default function SkillAuthorizationPage() {
                       Employee
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Skill Area
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Skill
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -286,7 +292,7 @@ export default function SkillAuthorizationPage() {
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         className="px-4 py-10 text-center text-sm text-slate-500"
                       >
                         No authorization requests found.
@@ -302,6 +308,9 @@ export default function SkillAuthorizationPage() {
                           <div className="text-xs text-slate-500">
                             {item.emp_code}
                           </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.skill_area || "-"}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">
                           {item.skill_name}

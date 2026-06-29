@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface Skill {
   skill_id: number;
   skill_name: string;
+  skill_area_id: number | null;
+  skill_area: string | null;
+  approval_status?: "Pending" | "Approved" | "Rejected";
 }
 
 interface Employee {
@@ -12,9 +15,15 @@ interface Employee {
   emp_name: string;
 }
 
+interface SkillArea {
+  id: number;
+  skill_area: string;
+}
+
 interface RecordItem {
   id: number;
   skill_name: string;
+  skill_area: string | null;
   emp_code: string;
   emp_name: string;
   desired_level: number;
@@ -29,17 +38,20 @@ interface AuthorizationItem {
 
 export default function TrainingPlanSkillPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [skillAreas, setSkillAreas] = useState<SkillArea[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<Skill[]>([]);
   const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([]);
-  const [submittedRecordIds, setSubmittedRecordIds] = useState<number[]>([]);
+  const [authorizationStatusByRecordId, setAuthorizationStatusByRecordId] =
+    useState<Record<number, string>>({});
   const [activeRole] = useState(() =>
     typeof window === "undefined" ? "" : localStorage.getItem("activeRole") ?? "",
   );
 
   const [form, setForm] = useState({
     employee_id: "",
+    skill_area_id: "",
     desired_level: "",
     actual_level: "",
   });
@@ -51,36 +63,60 @@ export default function TrainingPlanSkillPage() {
   });
 
   const loadAll = useCallback(async () => {
-    const mappingRes = await fetch("/api/incharge/training-plan-skill-mapping", {
-      cache: "no-store",
-    });
-
-    const mappingData = await mappingRes.json();
-
     const shouldLoadAuthorization =
       activeRole === "Incharge" || activeRole === "Admin";
-    const authorizationData = shouldLoadAuthorization
-      ? await fetch("/api/incharge/skills-authorization", {
-          cache: "no-store",
-        }).then((res) => res.json())
-      : [];
 
-    setSkills(mappingData.skills ?? []);
+    const [mappingData, skillMasterData, authorizationData] = await Promise.all([
+      fetch("/api/incharge/training-plan-skill-mapping", {
+        cache: "no-store",
+      }).then((res) => res.json()),
+      fetch("/api/incharge/skill-master?includeAll=true&includeAreas=true", {
+        cache: "no-store",
+      }).then((res) => res.json()),
+      shouldLoadAuthorization
+        ? fetch("/api/incharge/skills-authorization", {
+            cache: "no-store",
+          }).then((res) => res.json())
+        : Promise.resolve([]),
+    ]);
+
+    setSkills(Array.isArray(skillMasterData?.skills) ? skillMasterData.skills : []);
+    setSkillAreas(
+      Array.isArray(skillMasterData?.skillAreas) ? skillMasterData.skillAreas : [],
+    );
     setEmployees(mappingData.employees ?? []);
     setRecords(mappingData.records ?? []);
 
-    const pendingIds = Array.isArray(authorizationData)
-      ? authorizationData
-          .filter(
-            (item: AuthorizationItem) =>
-              item.status === "Pending" &&
-              Number.isFinite(Number(item.source_mapping_id)),
-          )
-          .map((item: AuthorizationItem) => Number(item.source_mapping_id))
-      : [];
+    const nextStatusByRecordId: Record<number, string> = {};
 
-    setSubmittedRecordIds(pendingIds);
+    if (Array.isArray(authorizationData)) {
+      for (const item of authorizationData as AuthorizationItem[]) {
+        const sourceRecordId = Number(item.source_mapping_id);
+        if (!Number.isFinite(sourceRecordId) || nextStatusByRecordId[sourceRecordId]) {
+          continue;
+        }
+
+        const status = String(item.status ?? "").trim();
+        if (!status) {
+          continue;
+        }
+
+        nextStatusByRecordId[sourceRecordId] = status;
+      }
+    }
+
+    setAuthorizationStatusByRecordId(nextStatusByRecordId);
   }, [activeRole]);
+
+  const filteredSkills = useMemo(() => {
+    const selectedAreaId = Number(form.skill_area_id);
+
+    if (!Number.isFinite(selectedAreaId) || selectedAreaId === 0) {
+      return [];
+    }
+
+    return skills.filter((skill) => Number(skill.skill_area_id) === selectedAreaId);
+  }, [form.skill_area_id, skills]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -145,6 +181,7 @@ export default function TrainingPlanSkillPage() {
         body: JSON.stringify({
           emp_code: form.employee_id,
           skill_id: skill.skill_id,
+          skill_area_id: Number(form.skill_area_id),
           desired_level: form.desired_level,
           actual_level: form.actual_level,
         }),
@@ -156,6 +193,7 @@ export default function TrainingPlanSkillPage() {
     setSelectedSkills([]);
     setForm({
       employee_id: "",
+      skill_area_id: "",
       desired_level: "",
       actual_level: "",
     });
@@ -198,6 +236,13 @@ export default function TrainingPlanSkillPage() {
     loadAll();
   };
 
+  const getStatusTextClass = (status: string) =>
+    status === "Pending"
+      ? "text-amber-600"
+      : status === "Approved"
+        ? "text-green-600"
+        : "text-red-600";
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -219,7 +264,7 @@ export default function TrainingPlanSkillPage() {
           <form onSubmit={submit} className="grid grid-cols-1 gap-4 md:grid-cols-12">
             <select
               required
-              className="md:col-span-4 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+              className="md:col-span-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={form.employee_id}
               onChange={(e) =>
                 setForm({ ...form, employee_id: e.target.value })
@@ -234,13 +279,31 @@ export default function TrainingPlanSkillPage() {
             </select>
 
             <select
-              className="md:col-span-4 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+              required
+              className="md:col-span-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+              value={form.skill_area_id}
+              onChange={(e) => {
+                setForm({ ...form, skill_area_id: e.target.value });
+                setSelectedSkills([]);
+              }}
+            >
+              <option value="">Select Skill Area</option>
+              {skillAreas.map((area) => (
+                <option key={area.id} value={area.id}>
+                  {area.skill_area}
+                </option>
+              ))}
+            </select>
+
+            <select
+              disabled={!form.skill_area_id}
+              className="md:col-span-2 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               value=""
               onChange={(e) => {
                 const id = Number(e.target.value);
                 if (!id) return;
 
-                const skill = skills.find((item) => item.skill_id === id);
+                const skill = filteredSkills.find((item) => item.skill_id === id);
                 if (
                   skill &&
                   !selectedSkills.some(
@@ -251,8 +314,10 @@ export default function TrainingPlanSkillPage() {
                 }
               }}
             >
-              <option value="">Select Skill</option>
-              {skills.map((skill) => (
+              <option value="">
+                {form.skill_area_id ? "Select Skill" : "Select Skill Area First"}
+              </option>
+              {filteredSkills.map((skill) => (
                 <option key={skill.skill_id} value={skill.skill_id}>
                   {skill.skill_name}
                 </option>
@@ -270,6 +335,11 @@ export default function TrainingPlanSkillPage() {
                       className="flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-700"
                     >
                       {skill.skill_name}
+                      {skill.skill_area ? (
+                        <span className="text-xs font-normal text-indigo-500">
+                          {skill.skill_area}
+                        </span>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() =>
@@ -297,7 +367,6 @@ export default function TrainingPlanSkillPage() {
                 setForm({ ...form, desired_level: e.target.value })
               }
             />
-
             <input
               className="md:col-span-2 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               placeholder="Actual Level"
@@ -345,6 +414,7 @@ export default function TrainingPlanSkillPage() {
                     <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Select</th>
                   ) : null}
                   <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Employee</th>
+                  <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Skill Area</th>
                   <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Skill</th>
                   <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Desired</th>
                   <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Actual</th>
@@ -360,6 +430,10 @@ export default function TrainingPlanSkillPage() {
                     const actual = Number(record.actual_level);
                     const rawGap = desired - actual;
                     const gap = Math.max(rawGap, 0);
+                    const authorizationStatus =
+                      authorizationStatusByRecordId[record.id];
+                    const isPendingAuthorization =
+                      authorizationStatus === "Pending";
                     const gapClass =
                       rawGap > 0
                         ? "bg-red-100 text-red-700"
@@ -374,19 +448,24 @@ export default function TrainingPlanSkillPage() {
                             <input
                               type="checkbox"
                               checked={selectedRecordIds.includes(record.id)}
-                              disabled={submittedRecordIds.includes(record.id)}
+                              disabled={isPendingAuthorization}
                               onChange={() => toggleRecordSelection(record.id)}
                               className="h-4 w-4"
                             />
-                            {submittedRecordIds.includes(record.id) ? (
-                              <div className="mt-1 text-[11px] font-medium text-amber-600">
-                                Pending
+                            {authorizationStatus ? (
+                              <div
+                                className={`mt-1 text-[11px] font-medium ${getStatusTextClass(
+                                  authorizationStatus,
+                                )}`}
+                              >
+                                {authorizationStatus}
                               </div>
                             ) : null}
                           </td>
                         ) : null}
 
                         <td className="px-4 py-3 text-slate-700">{record.emp_name}</td>
+                        <td className="px-4 py-3 text-slate-700">{record.skill_area || "-"}</td>
                         <td className="px-4 py-3 text-slate-700">{record.skill_name}</td>
 
                         <td className="px-4 py-3">
@@ -476,7 +555,7 @@ export default function TrainingPlanSkillPage() {
                 ) : (
                   <tr>
                     <td
-                      colSpan={activeRole === "Incharge" ? 7 : 6}
+                      colSpan={activeRole === "Incharge" ? 8 : 7}
                       className="px-4 py-10 text-center text-sm text-slate-500"
                     >
                       No skill mappings found.

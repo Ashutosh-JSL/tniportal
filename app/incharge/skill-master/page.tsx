@@ -5,19 +5,33 @@ import { useEffect, useState } from "react";
 interface Skill {
   skill_id: number;
   skill_name: string;
+  skill_area_id: number | null;
+  skill_area: string | null;
+  approval_status: "Pending" | "Approved" | "Rejected";
+}
+
+interface SkillArea {
+  id: number;
+  skill_area: string;
 }
 
 export default function SkillMasterPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [skillAreas, setSkillAreas] = useState<SkillArea[]>([]);
   const [skillName, setSkillName] = useState("");
+  const [skillAreaId, setSkillAreaId] = useState("");
   const [editingSkillId, setEditingSkillId] = useState<number | null>(null);
+  const pendingCount = skills.filter(
+    (skill) => skill.approval_status === "Pending",
+  ).length;
 
   const loadData = async () => {
-    const res = await fetch("/api/incharge/skill-master", {
+    const res = await fetch("/api/incharge/skill-master?includeAll=true&includeAreas=true", {
       cache: "no-store",
     });
     const data = await res.json();
-    setSkills(Array.isArray(data) ? data : []);
+    setSkills(Array.isArray(data?.skills) ? data.skills : []);
+    setSkillAreas(Array.isArray(data?.skillAreas) ? data.skillAreas : []);
   };
 
   useEffect(() => {
@@ -30,6 +44,7 @@ export default function SkillMasterPage() {
 
   const resetForm = () => {
     setSkillName("");
+    setSkillAreaId("");
     setEditingSkillId(null);
   };
 
@@ -41,10 +56,22 @@ export default function SkillMasterPage() {
       return;
     }
 
+    if (!skillAreaId) {
+      alert("Skill area is required");
+      return;
+    }
+
     const method = editingSkillId ? "PUT" : "POST";
     const body = editingSkillId
-      ? { skill_id: editingSkillId, skill_name: skillName.trim() }
-      : { skill_name: skillName.trim() };
+      ? {
+          skill_id: editingSkillId,
+          skill_name: skillName.trim(),
+          skill_area_id: Number(skillAreaId),
+        }
+      : {
+          skill_name: skillName.trim(),
+          skill_area_id: Number(skillAreaId),
+        };
 
     const res = await fetch("/api/incharge/skill-master", {
       method,
@@ -57,15 +84,18 @@ export default function SkillMasterPage() {
       alert(data?.error ?? "Unable to save skill");
       return;
     }
-
-    alert(editingSkillId ? "Skill updated successfully" : "Skill added successfully");
+    alert(
+      editingSkillId
+        ? "Skill updated successfully"
+        : "Skill added successfully and sent for admin approval",
+    );
     resetForm();
     void loadData();
   };
-
   const startEdit = (skill: Skill) => {
     setEditingSkillId(skill.skill_id);
     setSkillName(skill.skill_name);
+    setSkillAreaId(skill.skill_area_id ? String(skill.skill_area_id) : "");
   };
 
   const deleteSkill = async (skillId: number) => {
@@ -83,13 +113,20 @@ export default function SkillMasterPage() {
       alert(data?.error ?? "Unable to delete skill");
       return;
     }
-
+    
     alert("Skill deleted successfully");
     if (editingSkillId === skillId) {
       resetForm();
     }
     void loadData();
   };
+
+  const getStatusClass = (status: Skill["approval_status"]) =>
+    status === "Approved"
+      ? "bg-green-100 text-green-700"
+      : status === "Pending"
+        ? "bg-amber-100 text-amber-800"
+        : "bg-red-100 text-red-700";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
@@ -98,7 +135,9 @@ export default function SkillMasterPage() {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-800">Skill Master</h1>
-              <p className="mt-1 text-sm text-slate-600">Add and maintain your training skill catalog.</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Add and maintain your training skill catalog. New skills appear in dropdowns only after admin approval.
+              </p>
             </div>
             <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
               Skill Management
@@ -106,7 +145,7 @@ export default function SkillMasterPage() {
           </div>
 
           <form onSubmit={submit} className="grid gap-4 md:grid-cols-12">
-            <div className="md:col-span-8">
+            <div className="md:col-span-5">
               <label htmlFor="skillName" className="mb-1.5 block text-sm font-semibold text-slate-700">
                 Skill Name
               </label>
@@ -118,6 +157,26 @@ export default function SkillMasterPage() {
                 value={skillName}
                 onChange={(e) => setSkillName(e.target.value)}
               />
+            </div>
+
+            <div className="md:col-span-3">
+              <label htmlFor="skillArea" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Skill Area
+              </label>
+              <select
+                id="skillArea"
+                required
+                className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                value={skillAreaId}
+                onChange={(e) => setSkillAreaId(e.target.value)}
+              >
+                <option value="">Select skill area</option>
+                {skillAreas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.skill_area}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="md:col-span-2 md:self-end">
@@ -151,11 +210,19 @@ export default function SkillMasterPage() {
             </span>
           </div>
 
+          {pendingCount > 0 ? (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {pendingCount} skill{pendingCount === 1 ? "" : "s"} pending approval. Admin users can review these from Skill Master Approval.
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Skill Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Skill Area</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Approval</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Action</th>
                 </tr>
               </thead>
@@ -163,7 +230,7 @@ export default function SkillMasterPage() {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {skills.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="px-4 py-10 text-center text-sm text-slate-500">
+                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
                       No skills found.
                     </td>
                   </tr>
@@ -171,8 +238,19 @@ export default function SkillMasterPage() {
                   skills.map((skill) => (
                     <tr key={skill.skill_id} className="transition hover:bg-cyan-50/55">
                       <td className="px-4 py-3 text-sm font-semibold text-slate-700">{skill.skill_name}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{skill.skill_area || "-"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(skill.approval_status)}`}>
+                          {skill.approval_status}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-center">
-                        <div className="inline-flex items-center gap-2">
+                        <div className="inline-flex flex-wrap items-center justify-center gap-2">
+                          {skill.approval_status === "Pending" ? (
+                            <span className="rounded bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                              Admin approval required
+                            </span>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => startEdit(skill)}

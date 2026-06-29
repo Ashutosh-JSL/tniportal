@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/mailer";
 
 // Editable constant BCC for role-assignment mails
 const ROLE_ASSIGNMENT_BCC = "ashutosh.agrawal@jindalstainless.com";
+const TNI_PORTAL_LOGIN_URL = "https://jslaisrv01.jindalstainless.com:4436/login";
 
 type RoleAuthPayload = {
   userId?: string | number;
@@ -25,6 +26,15 @@ type AdminEmailRow = {
   E_MAIL: string | null;
 };
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildRoleAssignmentEmailBody(params: {
   employeeName: string;
   employeeCode: string;
@@ -32,17 +42,50 @@ function buildRoleAssignmentEmailBody(params: {
   password: string;
 }) {
   const { employeeName, employeeCode, roleName, password } = params;
+  const safeEmployeeName = escapeHtml(employeeName);
+  const safeEmployeeCode = escapeHtml(employeeCode);
+  const safeRoleName = escapeHtml(roleName);
+  const safePassword = escapeHtml(password);
 
   return `
-    <p>Dear ${employeeName},</p>
-    <p>You have been assigned as ${roleName} in Training Need Identification Portal.</p>
-    <p>
-      <strong>User ID (Employee Code):</strong> ${employeeCode}<br/>
-      <strong>Password:</strong> ${password}<br/>
-      <strong>Role:</strong> ${roleName}
-    </p>
-    <p>You can now log in with these credentials.</p>
-    <p>Regards,<br/>Training Team</p>
+    <div style="margin:0;padding:24px;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <div style="background:#0f4c81;padding:22px 28px;color:#ffffff;">
+          <h2 style="margin:0;font-size:22px;font-weight:700;line-height:1.3;">Training Need Identification Portal</h2>
+          <p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:#dbeafe;">Role assignment confirmation</p>
+        </div>
+
+        <div style="padding:28px;">
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">Dear ${safeEmployeeName},</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.6;">
+            You have been assigned the <strong>${safeRoleName}</strong> role in the Training Need Identification Portal.
+          </p>
+
+          <div style="margin:22px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+            <p style="margin:0 0 10px;font-size:14px;line-height:1.5;"><strong>User ID (Employee Code):</strong> ${safeEmployeeCode}</p>
+            <p style="margin:0 0 10px;font-size:14px;line-height:1.5;"><strong>Password:</strong> ${safePassword}</p>
+            <p style="margin:0;font-size:14px;line-height:1.5;"><strong>Role:</strong> ${safeRoleName}</p>
+          </div>
+
+          <p style="margin:0 0 22px;font-size:15px;line-height:1.6;">
+            Please use the button below to log in with these credentials.
+          </p>
+
+          <a href="${TNI_PORTAL_LOGIN_URL}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:12px 22px;background:#0f4c81;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:700;">
+            Login to TNI Portal
+          </a>
+
+          <p style="margin:22px 0 0;font-size:13px;line-height:1.6;color:#64748b;">
+            If the button does not work, copy and paste this link into your browser:<br/>
+            <a href="${TNI_PORTAL_LOGIN_URL}" target="_blank" rel="noopener noreferrer" style="color:#0f4c81;text-decoration:underline;">${TNI_PORTAL_LOGIN_URL}</a>
+          </p>
+        </div>
+
+        <div style="padding:18px 28px;background:#f8fafc;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;font-size:13px;line-height:1.5;color:#475569;">Regards,<br/>Training Team</p>
+        </div>
+      </div>
+    </div>
   `;
 }
 

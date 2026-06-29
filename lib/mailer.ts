@@ -195,6 +195,7 @@ async function getAuthToken(): Promise<string> {
     }),
   });
 
+
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
     throw new Error(`Mail API auth failed (${res.status}): ${errText}`);

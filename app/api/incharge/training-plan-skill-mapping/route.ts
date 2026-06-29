@@ -25,6 +25,24 @@ const config = {
   },
 };
 
+async function ensureSkillApprovalColumn(pool: sql.ConnectionPool) {
+  await pool.request().query(`
+    IF COL_LENGTH('dbo.Skills', 'approval_status') IS NULL
+    BEGIN
+      ALTER TABLE dbo.Skills
+      ADD approval_status NVARCHAR(20) NOT NULL
+        CONSTRAINT DF_Skills_approval_status DEFAULT 'Approved'
+        WITH VALUES
+    END
+
+    IF COL_LENGTH('dbo.TrainingPlanSkills', 'skill_area_id') IS NULL
+    BEGIN
+      ALTER TABLE dbo.TrainingPlanSkills
+      ADD skill_area_id INT NULL
+    END
+  `);
+}
+
 /* ===================== GET ===================== */
 export async function GET() {
   try {
@@ -35,11 +53,7 @@ export async function GET() {
     }
 
     const pool = await sql.connect(config);
-
-    const skills = await pool.request().query(`
-      SELECT skill_id, skill_name
-      FROM dbo.Skills
-    `);
+    await ensureSkillApprovalColumn(pool);
 
     const employees = await pool.request()
     .input("user_id", sql.VarChar(20), userId)
@@ -61,18 +75,22 @@ export async function GET() {
         E.emp_code,
         E.emp_name,
         STRING_AGG(S.skill_name, ', ') AS skill_name,
+        COALESCE(SA.SKILL_AREA, '-') AS skill_area,
         TPS.desired_level,
         TPS.actual_level,
         TPS.gap
       FROM dbo.TrainingPlanSkills TPS
       JOIN dbo.Skills S
         ON TPS.skill_id = S.skill_id
+      LEFT JOIN dbo.SKILL_AREA SA
+        ON SA.ID = COALESCE(TPS.skill_area_id, S.SKILL_AREA_ID)
       LEFT JOIN dbo.Employees E
         ON TPS.employee_id = E.emp_code
       WHERE TPS.crby = @crby
       GROUP BY
         E.emp_code,
         E.emp_name,
+        COALESCE(SA.SKILL_AREA, '-'),
         TPS.desired_level,
         TPS.actual_level,
         TPS.gap
@@ -83,7 +101,6 @@ export async function GET() {
     return NextResponse.json(
       {
         
-        skills: skills.recordset,
         employees: employees.recordset,
         records: records.recordset,
       },
@@ -92,7 +109,7 @@ export async function GET() {
   } catch (err) {
     console.error(err);
     return NextResponse.json(
-      {  skills: [], employees: [], records: [] },
+      { employees: [], records: [] },
       { status: 500 }
     );
   }
@@ -109,16 +126,50 @@ export async function POST(req: Request) {
 
     const {
       skill_id,
+      skill_area_id,
       emp_code,
       desired_level,
       actual_level,
     } = await req.json();
     
     const pool = await sql.connect(config);
+    await ensureSkillApprovalColumn(pool);
+
+    const selectedSkillAreaId = Number(skill_area_id);
+
+    if (!Number.isFinite(selectedSkillAreaId)) {
+      return NextResponse.json(
+        { error: "Skill area is required" },
+        { status: 400 },
+      );
+    }
+
+    const selectedSkill = await pool.request()
+      .input("skill_id", sql.Int, skill_id)
+      .input("skill_area_id", sql.Int, selectedSkillAreaId)
+      .query(`
+        SELECT TOP 1
+          skill_id,
+          SKILL_AREA_ID AS skill_area_id
+        FROM dbo.Skills
+        WHERE skill_id = @skill_id
+          AND SKILL_AREA_ID = @skill_area_id
+          AND (IsActive = 1 OR IsActive IS NULL)
+      `);
+
+    if (selectedSkill.recordset.length === 0) {
+      return NextResponse.json(
+        { error: "Selected skill is not mapped with the selected skill area" },
+        { status: 400 },
+      );
+    }
+
+    const skillAreaId = selectedSkill.recordset[0]?.skill_area_id ?? selectedSkillAreaId;
 
     await pool.request()
-    
+
       .input("skill_id", sql.Int, skill_id)
+      .input("skill_area_id", sql.Int, skillAreaId)
       .input("emp_code", sql.VarChar(20), emp_code)
       .input("desired_level", sql.Int, desired_level)
       .input("actual_level", sql.Int, actual_level)
@@ -126,8 +177,9 @@ export async function POST(req: Request) {
       .query(`
         INSERT INTO dbo.TrainingPlanSkills
         (
-          
+
           skill_id,
+          skill_area_id,
           employee_id,
           desired_level,
           actual_level,
@@ -135,8 +187,9 @@ export async function POST(req: Request) {
         )
         VALUES
         (
-          
+
           @skill_id,
+          @skill_area_id,
           @emp_code,
           @desired_level,
           @actual_level,

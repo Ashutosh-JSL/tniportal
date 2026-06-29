@@ -87,6 +87,14 @@ export default function Navbar() {
   const menuItems: Record<string, NavItem[]> = {
     Admin: [
       { name: "Dashboard", href: "/Home" },
+      {
+        name: "Skill Master Approval",
+        href: "/incharge/skill-master-approval",
+      },
+      {
+        name: "Training Plan Master Approval",
+        href: "/incharge/training-plan-master-approval",
+      },
       { name: "Skill Authorization", href: "/incharge/skills-authorization" },
       {
         name: "Training Authorization",
@@ -219,9 +227,9 @@ export default function Navbar() {
                   </button>
 
                   {menuOpen ? (
-                    <div className="absolute right-0 top-full z-[85] mt-5 max-w-[92vw]">
-                      <div className="rounded-2xl border border-white/90 bg-white/85 p-3 shadow-[0_20px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-                        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap rounded-xl bg-gradient-to-r from-cyan-50/80 via-sky-50/70 to-indigo-50/80 p-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                    <div className="fixed right-4 top-24 z-[85] max-w-[calc(100vw-2rem)] sm:right-6 lg:right-12">
+                      <div className="overflow-x-auto rounded-2xl border border-white/90 bg-white/85 p-3 shadow-[0_20px_45px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+                        <div className="inline-flex min-w-max flex-nowrap items-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-cyan-50/80 via-sky-50/70 to-indigo-50/80 p-2">
                           {currentMenu.map((item) => {
                             const isActive = pathname === item.href;
 
@@ -230,7 +238,7 @@ export default function Navbar() {
                                 key={item.name}
                                 href={item.href}
                                 onClick={() => setMenuOpen(false)}
-                                className={`shrink-0 rounded-full border px-4 py-2.5 text-sm font-semibold tracking-wide transition-all duration-200 ${
+                                className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold tracking-wide transition-all duration-200 xl:px-4 xl:py-2.5 xl:text-sm ${
                                   isActive
                                     ? "border-blue-300 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.35)]"
                                     : "border-slate-100 bg-white/95 text-slate-700 hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-white hover:text-slate-900 hover:shadow-[0_12px_22px_rgba(14,116,144,0.2)]"

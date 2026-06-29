@@ -29,7 +29,11 @@ export default function TrainingPlanAuthorizationPage() {
   );
   const [loading, setLoading] = useState(true);
 
+  const isAdmin = activeRole.trim().toLowerCase() === "admin";
+
   const loadItems = async () => {
+    if (!isAdmin) return;
+
     setLoading(true);
 
     try {
@@ -45,11 +49,13 @@ export default function TrainingPlanAuthorizationPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadItems();
+      if (isAdmin) {
+        void loadItems();
+      }
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [isAdmin]);
 
   const reviewRequest = async (id: number, action: "approve" | "reject") => {
     const res = await fetch("/api/incharge/training-plan-authorization", {
@@ -78,7 +84,7 @@ export default function TrainingPlanAuthorizationPage() {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
+        .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
 
     const formatDateOnly = (value: string | null) =>
@@ -204,7 +210,19 @@ export default function TrainingPlanAuthorizationPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (activeRole && activeRole !== "Admin") {
+  const getStatusClass = (status: string) =>
+    status === "Pending"
+      ? "bg-amber-100 text-amber-800"
+      : status === "Approved"
+        ? "bg-green-100 text-green-700"
+        : "bg-red-100 text-red-700";
+
+  const getPlanTypeClass = (type: string | null) =>
+    type === "Project"
+      ? "bg-indigo-100 text-indigo-700"
+      : "bg-cyan-100 text-cyan-700";
+
+  if (!isAdmin) {
     return (
       <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
         <div className="mx-auto max-w-4xl">
@@ -226,8 +244,7 @@ export default function TrainingPlanAuthorizationPage() {
                 Training Plan Authorization
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                Pending training plans submitted by incharge users for admin
-                review.
+                Approve or reject training plans submitted by incharge users.
               </p>
             </div>
             <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
@@ -292,9 +309,6 @@ export default function TrainingPlanAuthorizationPage() {
                       Year
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
-                      Requested By
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Status
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -307,7 +321,7 @@ export default function TrainingPlanAuthorizationPage() {
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={11}
+                        colSpan={9}
                         className="px-4 py-10 text-center text-sm text-slate-500"
                       >
                         No authorization requests found.
@@ -327,13 +341,11 @@ export default function TrainingPlanAuthorizationPage() {
                         <td className="px-4 py-3 text-sm text-slate-700">
                           {item.plan_desc}
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">
+                        <td className="px-4 py-3">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                              (item.plan_type ?? "Training") === "Project"
-                                ? "bg-indigo-100 text-indigo-700"
-                                : "bg-cyan-100 text-cyan-700"
-                            }`}
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getPlanTypeClass(
+                              item.plan_type,
+                            )}`}
                           >
                             {item.plan_type ?? "Training"}
                           </span>
@@ -354,26 +366,14 @@ export default function TrainingPlanAuthorizationPage() {
                           {item.year}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm text-slate-700">
-                            {item.requested_by_name || item.requested_by}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {new Date(item.requested_at).toLocaleString()}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
                           <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                              item.status === "Pending"
-                                ? "bg-amber-100 text-amber-800"
-                                : item.status === "Approved"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                              item.status,
+                            )}`}
                           >
                             {item.status}
                           </span>
-                          {item.reviewed_by_name ? (
+                          {item.reviewed_by_name && item.status !== "Pending" ? (
                             <div className="mt-2 text-xs text-slate-500">
                               {item.reviewed_by_name}
                               {item.reviewed_at
@@ -402,7 +402,7 @@ export default function TrainingPlanAuthorizationPage() {
                             </div>
                           ) : (
                             <span className="text-xs text-slate-400">
-                              Review completed
+                              Reviewed by {item.reviewed_by_name || "Admin"}
                             </span>
                           )}
                         </td>

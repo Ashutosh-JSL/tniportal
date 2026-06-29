@@ -24,6 +24,7 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
         source_mapping_id INT NULL,
         emp_code VARCHAR(20) NOT NULL,
         emp_name NVARCHAR(100) NULL,
+        skill_area NVARCHAR(255) NULL,
         skill_name NVARCHAR(255) NOT NULL,
         desired_level INT NOT NULL,
         actual_level INT NOT NULL,
@@ -36,6 +37,12 @@ async function ensureQueueTable(pool: sql.ConnectionPool) {
         reviewed_by_name NVARCHAR(100) NULL,
         reviewed_at DATETIME NULL
       )
+    END
+
+    IF COL_LENGTH('dbo.SkillAuthorizationQueue', 'skill_area') IS NULL
+    BEGIN
+      ALTER TABLE dbo.SkillAuthorizationQueue
+      ADD skill_area NVARCHAR(255) NULL
     END
   `);
 }
@@ -57,6 +64,7 @@ export async function GET() {
         source_mapping_id,
         emp_code,
         emp_name,
+        skill_area,
         skill_name,
         desired_level,
         actual_level,
@@ -140,6 +148,7 @@ export async function POST(req: NextRequest) {
         .input("source_mapping_id", sql.Int, sourceId)
         .input("emp_code", sql.VarChar(20), String(record.emp_code ?? ""))
         .input("emp_name", sql.NVarChar(100), String(record.emp_name ?? ""))
+        .input("skill_area", sql.NVarChar(255), String(record.skill_area ?? ""))
         .input("skill_name", sql.NVarChar(255), String(record.skill_name ?? ""))
         .input("desired_level", sql.Int, Number(record.desired_level ?? 0))
         .input("actual_level", sql.Int, Number(record.actual_level ?? 0))
@@ -160,6 +169,7 @@ export async function POST(req: NextRequest) {
             source_mapping_id,
             emp_code,
             emp_name,
+            skill_area,
             skill_name,
             desired_level,
             actual_level,
@@ -172,6 +182,7 @@ export async function POST(req: NextRequest) {
             @source_mapping_id,
             @emp_code,
             @emp_name,
+            @skill_area,
             @skill_name,
             @desired_level,
             @actual_level,

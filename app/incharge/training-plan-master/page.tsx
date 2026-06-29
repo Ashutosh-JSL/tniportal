@@ -2,25 +2,52 @@
 
 import { useEffect, useState } from "react";
 
+interface SkillArea {
+  id: number;
+  skill_area: string;
+}
+
 interface Plan {
   plan_master_id: number;
   plan_Heading: string;
   plan_Desc: string;
+  approval_status: "Pending" | "Approved" | "Rejected";
   created_at: string;
+  skill_area_id?: number | null;
+  skill_area_name?: string | null;
 }
 
 export default function TrainingPlanMasterPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [skillAreas, setSkillAreas] = useState<SkillArea[]>([]);
   const [planHeading, setPlanHeading] = useState("");
   const [planDesc, setPlanDesc] = useState("");
+  const [skill_area_id, setSkillAreaId] = useState<string>("");
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const pendingCount = plans.filter(
+    (plan) => plan.approval_status === "Pending",
+  ).length;
 
   const loadData = async () => {
-    const res = await fetch("/api/incharge/training-plan-master", {
+    const res = await fetch("/api/incharge/training-plan-master?includeAll=true", {
       cache: "no-store",
     });
     const data = await res.json();
     setPlans(Array.isArray(data) ? data : []);
+
+    // Fetch skill areas for dropdown
+    try {
+      const areaRes = await fetch("/api/incharge/skill-areas", {
+        cache: "no-store",
+      });
+      const areaData = await areaRes.json();
+      if (Array.isArray(areaData)) {
+        setSkillAreas(areaData);
+      }
+    } catch (err) {
+      console.error("Error fetching skill areas:", err);
+      // Skill areas not available
+    }
   };
 
   useEffect(() => {
@@ -34,6 +61,7 @@ export default function TrainingPlanMasterPage() {
   const resetForm = () => {
     setPlanHeading("");
     setPlanDesc("");
+    setSkillAreaId("");
     setEditingPlanId(null);
   };
 
@@ -51,10 +79,12 @@ export default function TrainingPlanMasterPage() {
           plan_master_id: editingPlanId,
           plan_Heading: planHeading.trim(),
           plan_Desc: planDesc.trim(),
+          skill_area_id: skill_area_id || null,
         }
       : {
           plan_Heading: planHeading.trim(),
           plan_Desc: planDesc.trim(),
+          skill_area_id: skill_area_id || null,
         };
 
     const res = await fetch("/api/incharge/training-plan-master", {
@@ -69,7 +99,11 @@ export default function TrainingPlanMasterPage() {
       return;
     }
 
-    alert(editingPlanId ? "Plan updated successfully" : "Plan added successfully");
+    alert(
+      editingPlanId
+        ? "Plan updated successfully"
+        : "Plan added successfully and sent for admin approval",
+    );
     resetForm();
     void loadData();
   };
@@ -78,6 +112,7 @@ export default function TrainingPlanMasterPage() {
     setEditingPlanId(plan.plan_master_id);
     setPlanHeading(plan.plan_Heading || "");
     setPlanDesc(plan.plan_Desc || "");
+    setSkillAreaId(plan.skill_area_id?.toString() || "");
   };
 
   const deletePlan = async (planMasterId: number) => {
@@ -103,6 +138,13 @@ export default function TrainingPlanMasterPage() {
     void loadData();
   };
 
+  const getStatusClass = (status: Plan["approval_status"]) =>
+    status === "Approved"
+      ? "bg-green-100 text-green-700"
+      : status === "Pending"
+        ? "bg-amber-100 text-amber-800"
+        : "bg-red-100 text-red-700";
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -110,7 +152,9 @@ export default function TrainingPlanMasterPage() {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-800">Training Plan Master</h1>
-              <p className="mt-1 text-sm text-slate-600">Create and maintain training plan templates.</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Create and maintain training plan templates. New plans appear in dropdowns only after admin approval.
+              </p>
             </div>
             <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
               Plan Management
@@ -146,6 +190,25 @@ export default function TrainingPlanMasterPage() {
             </div>
 
             <div className="md:col-span-3 md:self-end">
+              <label htmlFor="skill_area_id" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Skill Area (Optional)
+              </label>
+              <select
+                id="skill_area_id"
+                value={skill_area_id}
+                onChange={(e) => setSkillAreaId(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+              >
+                <option value="">Select Skill Area</option>
+                {skillAreas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.skill_area}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-3 md:self-end">
               <button className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(37,99,235,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(37,99,235,0.38)]">
                 {editingPlanId ? "Update Plan" : "Add Plan"}
               </button>
@@ -173,12 +236,20 @@ export default function TrainingPlanMasterPage() {
             </span>
           </div>
 
+          {pendingCount > 0 ? (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {pendingCount} plan{pendingCount === 1 ? "" : "s"} pending approval. Admin users can review these from Training Plan Master Approval.
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Plan Heading</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Plan Description</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Skill Area</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Approval</th>
                   <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Created</th>
                   <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Action</th>
                 </tr>
@@ -187,7 +258,7 @@ export default function TrainingPlanMasterPage() {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {plans.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
                       No plans found.
                     </td>
                   </tr>
@@ -196,6 +267,20 @@ export default function TrainingPlanMasterPage() {
                     <tr key={plan.plan_master_id} className="transition hover:bg-cyan-50/55">
                       <td className="px-4 py-3 text-sm font-semibold text-slate-700">{plan.plan_Heading}</td>
                       <td className="px-4 py-3 text-sm text-slate-700">{plan.plan_Desc || "-"}</td>
+                      <td className="px-4 py-3">
+                        {plan.skill_area_name ? (
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 border border-blue-100">
+                            {plan.skill_area_name}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-slate-400 italic">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(plan.approval_status)}`}>
+                          {plan.approval_status}
+                        </span>
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
                         {new Date(plan.created_at).toLocaleDateString()}
                       </td>
