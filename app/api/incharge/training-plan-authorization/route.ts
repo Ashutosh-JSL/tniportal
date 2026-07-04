@@ -187,29 +187,39 @@ export async function POST(req: Request) {
     const isBitStatus = await isTrainingPlanStatusBit(pool);
     const updatedBy = String(currentUser.employeeCode ?? currentUser.username ?? "").slice(0, 20);
 
-    for (const record of records) {
-      const sourceId = Number(record.plan_id);
+    // Use a transaction for bulk update
+    const transaction = await pool.transaction();
+    try {
+      await transaction.begin();
+      const request = transaction.request();
 
-      if (!Number.isFinite(sourceId)) {
-        continue;
-      }
-
-      const request = pool.request();
+      // Build the query with IN clause
+      const placeholders = records.map((_: any, i: number) => `@id_${i}`).join(", ");
+      records.forEach((record: any, index: number) => {
+        request.input(`id_${index}`, sql.Int, Number(record.plan_id));
+      });
       inputTrainingPlanStatus(request, isBitStatus, "Pending");
+      request.input("upby", sql.VarChar(20), updatedBy);
 
-      await request
-        .input("plan_id", sql.Int, sourceId)
-        .input("upby", sql.VarChar(20), updatedBy)
-        .query(`
-          UPDATE dbo.TrainingPlan
-          SET status = @status,
-              UpBy = @upby,
-              UpDt = GETDATE()
-          WHERE plan_id = @plan_id
-        `);
+      await request.query(`
+        UPDATE dbo.TrainingPlan
+        SET status = @status,
+            UpBy = @upby,
+            UpDt = GETDATE()
+        WHERE plan_id IN (${placeholders})
+      `);
+
+      await transaction.commit();
+
+      return NextResponse.json({ success: true, submittedCount: records.length });
+    } catch (error) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error("Transaction rollback failed:", rollbackError);
+      }
+      throw error;
     }
-
-    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("TRAINING PLAN AUTH POST ERROR:", error);
     const message = error instanceof Error ? error.message : "Failed to submit authorization request";
@@ -237,11 +247,11 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const { id, action } = await req.json();
+    const { id, action, ids } = await req.json();
     const status =
       action === "approve" ? "Approved" : action === "reject" ? "Rejected" : "";
 
-    if (!id || !status) {
+    if (!status) {
       return NextResponse.json(
         { error: "Invalid review request" },
         { status: 400 },
@@ -251,6 +261,52 @@ export async function PATCH(req: Request) {
     const pool = await sql.connect(config);
     await ensureTrainingPlanSchema(pool);
     const isBitStatus = await isTrainingPlanStatusBit(pool);
+
+    // Handle bulk operations
+    if (Array.isArray(ids) && ids.length > 0) {
+      const transaction = await pool.transaction();
+      try {
+        await transaction.begin();
+        const request = transaction.request();
+
+        // Build the query with IN clause
+        const placeholders = ids.map((_: any, i: number) => `@id_${i}`).join(", ");
+        ids.forEach((idVal: number, index: number) => {
+          request.input(`id_${index}`, sql.Int, idVal);
+        });
+        inputTrainingPlanStatus(request, isBitStatus, status);
+        request.input("reviewed_by", sql.VarChar(20), String(currentUser.employeeCode ?? ""));
+        request.input("reviewed_at", sql.DateTime, new Date());
+
+        await request.query(`
+          UPDATE dbo.TrainingPlan
+          SET
+            status = @status,
+            reviewed_by = @reviewed_by,
+            reviewed_at = @reviewed_at
+          WHERE plan_id IN (${placeholders})
+        `);
+
+        await transaction.commit();
+
+        return NextResponse.json({ success: true, updatedCount: ids.length });
+      } catch (error) {
+        try {
+          await transaction.rollback();
+        } catch (rollbackError) {
+          console.error("Transaction rollback failed:", rollbackError);
+        }
+        throw error;
+      }
+    }
+
+    // Handle single item operation (legacy)
+    if (!id || !status) {
+      return NextResponse.json(
+        { error: "Invalid review request" },
+        { status: 400 },
+      );
+    }
 
     const request = pool.request();
     inputTrainingPlanStatus(request, isBitStatus, status);

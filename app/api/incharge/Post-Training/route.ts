@@ -94,6 +94,9 @@ async function ensurePostTrainingColumns(pool: sql.ConnectionPool) {
 
     IF COL_LENGTH('dbo.Post_training_plan', 'actual_outcome') IS NULL
       ALTER TABLE dbo.Post_training_plan ADD actual_outcome NVARCHAR(200) NULL
+
+    IF COL_LENGTH('dbo.Post_training_plan', 'outcome_id') IS NULL
+      ALTER TABLE dbo.Post_training_plan ADD outcome_id INT NULL
   `);
 }
 
@@ -126,14 +129,9 @@ export async function GET() {
           t.project_skill_names,
           COALESCE(tp.Skill_Area_Id, tpm.skill_area_id) AS skill_area_id,
           sa.SKILL_AREA AS skill_area_name,
-          COALESCE(
-            NULLIF(LTRIM(RTRIM(t.target_outcome)), ''),
-            CASE WHEN t.effectiveness_desired IS NULL THEN NULL ELSE CAST(t.effectiveness_desired AS NVARCHAR(50)) END
-          ) AS target_outcome,
-          COALESCE(
-            NULLIF(LTRIM(RTRIM(t.actual_outcome)), ''),
-            CASE WHEN t.effectiveness_actual IS NULL THEN NULL ELSE CAST(t.effectiveness_actual AS NVARCHAR(50)) END
-          ) AS actual_outcome,
+          t.outcome_id,
+          COALESCE(tomo.outcome_name, COALESCE(NULLIF(LTRIM(RTRIM(t.target_outcome)), ''), CASE WHEN t.effectiveness_desired IS NULL THEN NULL ELSE CAST(t.effectiveness_desired AS NVARCHAR(50)) END)) AS target_outcome,
+          COALESCE(tomo_act.outcome_name, COALESCE(NULLIF(LTRIM(RTRIM(t.actual_outcome)), ''), CASE WHEN t.effectiveness_actual IS NULL THEN NULL ELSE CAST(t.effectiveness_actual AS NVARCHAR(50)) END)) AS actual_outcome,
           CASE
             WHEN TRY_CONVERT(DECIMAL(18,4), COALESCE(NULLIF(LTRIM(RTRIM(t.target_outcome)), ''), CAST(t.effectiveness_desired AS NVARCHAR(50)))) IS NOT NULL
              AND TRY_CONVERT(DECIMAL(18,4), COALESCE(NULLIF(LTRIM(RTRIM(t.actual_outcome)), ''), CAST(t.effectiveness_actual AS NVARCHAR(50)))) IS NOT NULL
@@ -164,6 +162,10 @@ export async function GET() {
           ON tpm.plan_master_id = tp.plan_master_id
         LEFT JOIN dbo.SKILL_AREA sa
           ON sa.ID = COALESCE(tp.Skill_Area_Id, tpm.skill_area_id)
+        LEFT JOIN dbo.mst_training_outcome tomo
+          ON tomo.outcome_rating = TRY_CONVERT(INT, t.target_outcome)
+        LEFT JOIN dbo.mst_training_outcome tomo_act
+          ON tomo_act.outcome_rating = TRY_CONVERT(INT, t.actual_outcome)
         WHERE ISNULL(t.IsActive, 1) = 1
           AND (t.crby = @user_id OR t.upby = @user_id)
         ORDER BY t.created_at DESC, t.plan_id DESC
@@ -202,6 +204,9 @@ export async function POST(req: NextRequest) {
     const sourcePlanIdRaw = String(data.get("source_plan_id") ?? "").trim();
     const sourcePlanId = sourcePlanIdRaw ? Number(sourcePlanIdRaw) : null;
 
+    const outcomeIdRaw = String(data.get("outcome_id") ?? "").trim();
+    const outcomeId = outcomeIdRaw ? Number(outcomeIdRaw) : null;
+
     await pool.request()
       .input("source_plan_id", sql.Int, Number.isFinite(sourcePlanId ?? NaN) ? sourcePlanId : null)
       .input("plan_desc", sql.NVarChar(500), String(data.get("plan_desc") ?? ""))
@@ -212,6 +217,7 @@ export async function POST(req: NextRequest) {
       )
       .input("target_outcome", sql.NVarChar(200), targetOutcome || null)
       .input("actual_outcome", sql.NVarChar(200), actualOutcome || null)
+      .input("outcome_id", sql.Int, outcomeId)
       .input("year", sql.NVarChar(10), String(data.get("year") ?? ""))
       .input("responsible_person", sql.NVarChar(100), String(data.get("responsible_person") ?? ""))
       .input("target_date", sql.Date, data.get("target_date") || null)
@@ -237,6 +243,7 @@ export async function POST(req: NextRequest) {
           project_skill_names,
           target_outcome,
           actual_outcome,
+          outcome_id,
           employee_id,
           [year],
           responsible_person,
@@ -261,6 +268,7 @@ export async function POST(req: NextRequest) {
           @project_skill_names,
           @target_outcome,
           @actual_outcome,
+          @outcome_id,
           @employee_id,
           @year,
           @responsible_person,
@@ -335,6 +343,9 @@ export async function PUT(req: NextRequest) {
     const sourcePlanIdRaw = String(data.get("source_plan_id") ?? "").trim();
     const sourcePlanId = sourcePlanIdRaw ? Number(sourcePlanIdRaw) : null;
 
+    const outcomeIdRaw = String(data.get("outcome_id") ?? "").trim();
+    const outcomeId = outcomeIdRaw ? Number(outcomeIdRaw) : null;
+
     await pool.request()
       .input("plan_id", sql.Int, rowKey.recordId)
       .input("employee_id_lookup", sql.NVarChar(50), rowKey.employeeId)
@@ -348,6 +359,7 @@ export async function PUT(req: NextRequest) {
       )
       .input("target_outcome", sql.NVarChar(200), targetOutcome || null)
       .input("actual_outcome", sql.NVarChar(200), actualOutcome || null)
+      .input("outcome_id", sql.Int, outcomeId)
       .input("year", sql.NVarChar(10), String(data.get("year") ?? ""))
       .input("responsible_person", sql.NVarChar(100), String(data.get("responsible_person") ?? ""))
       .input("target_date", sql.Date, data.get("target_date") || null)
@@ -372,6 +384,7 @@ export async function PUT(req: NextRequest) {
           project_skill_names = @project_skill_names,
           target_outcome = @target_outcome,
           actual_outcome = @actual_outcome,
+          outcome_id = @outcome_id,
           [year] = @year,
           responsible_person = @responsible_person,
           target_date = @target_date,

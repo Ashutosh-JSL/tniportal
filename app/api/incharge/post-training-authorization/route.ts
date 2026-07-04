@@ -367,10 +367,59 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const { id, action } = await req.json();
+    const { id, action, ids } = await req.json();
     const normalizedAction =
       action === "approve" ? "Approved" : action === "reject" ? "Rejected" : "";
 
+    // Handle bulk operations
+    if (Array.isArray(ids) && ids.length > 0) {
+      const pool = await getConnection();
+      await ensureQueueTable(pool);
+
+      const transaction = await pool.transaction();
+      try {
+        await transaction.begin();
+
+        const request = transaction.request();
+
+        // Build the query with IN clause
+        const placeholders = ids.map((_: number, i: number) => `@id_${i}`).join(", ");
+        ids.forEach((idVal: number, index: number) => {
+          request.input(`id_${index}`, sql.Int, idVal);
+        });
+
+        request.input("status", sql.NVarChar(20), normalizedAction);
+        request.input("reviewed_by", sql.VarChar(20), String(currentUser.employeeCode ?? ""));
+        request.input(
+          "reviewed_by_name",
+          sql.NVarChar(100),
+          String(currentUser.username ?? ""),
+        );
+
+        await request.query(`
+          UPDATE dbo.PostTrainingAuthorizationQueue
+          SET
+            status = @status,
+            reviewed_by = @reviewed_by,
+            reviewed_by_name = @reviewed_by_name,
+            reviewed_at = GETDATE()
+          WHERE id IN (${placeholders})
+        `);
+
+        await transaction.commit();
+
+        return NextResponse.json({ success: true, updatedCount: ids.length });
+      } catch (error) {
+        try {
+          await transaction.rollback();
+        } catch (rollbackError) {
+          console.error("Transaction rollback failed:", rollbackError);
+        }
+        throw error;
+      }
+    }
+
+    // Handle single item operation
     if (!id || !normalizedAction) {
       return NextResponse.json(
         { error: "Invalid review request" },

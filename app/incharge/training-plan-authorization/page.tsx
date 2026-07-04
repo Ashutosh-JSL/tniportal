@@ -26,6 +26,7 @@ type AuthorizationItem = {
 
 export default function TrainingPlanAuthorizationPage() {
   const [items, setItems] = useState<AuthorizationItem[]>([]);
+  const [checkedIds, setCheckedIds] = useState<number[]>([]);
   const [activeRole] = useState(() =>
     typeof window === "undefined" ? "" : localStorage.getItem("activeRole") ?? "",
   );
@@ -59,6 +60,50 @@ export default function TrainingPlanAuthorizationPage() {
     return () => window.clearTimeout(timer);
   }, [isAdmin, loadItems]);
 
+  const bulkReviewRequest = async (action: "approve" | "reject") => {
+    if (checkedIds.length === 0) {
+      alert(`Please select at least one record to ${action}.`);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/incharge/training-plan-authorization", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ids: checkedIds }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.error ?? `Unable to ${action} training plan(s)`);
+        return;
+      }
+
+      setCheckedIds([]);
+      void loadItems();
+    } catch (error) {
+      console.error("Bulk review error:", error);
+      alert(`Failed to ${action} training plan(s).`);
+    }
+  };
+
+  const toggleCheck = (id: number) => {
+    setCheckedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const toggleAll = () => {
+    // Only select pending items
+    const pendingItems = items.filter((item) => item.status === "Pending");
+
+    if (checkedIds.length === pendingItems.length && pendingItems.length > 0) {
+      setCheckedIds([]);
+    } else {
+      setCheckedIds(pendingItems.map((item) => item.id));
+    }
+  };
+
   const reviewRequest = async (id: number, action: "approve" | "reject") => {
     const res = await fetch("/api/incharge/training-plan-authorization", {
       method: "PATCH",
@@ -68,7 +113,7 @@ export default function TrainingPlanAuthorizationPage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      alert(data?.error ?? "Unable to update authorization request");
+      alert(data?.error ?? `Unable to ${action} training plan`);
       return;
     }
 
@@ -260,9 +305,27 @@ export default function TrainingPlanAuthorizationPage() {
         <div className="rounded-3xl border border-white/75 bg-white/75 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-bold tracking-tight text-slate-800">
-              Authorization Requests
+              Training Plan Approvals
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {checkedIds.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => bulkReviewRequest("approve")}
+                    className="rounded-xl px-4 py-2 text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition"
+                  >
+                    Approve Selected ({checkedIds.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => bulkReviewRequest("reject")}
+                    className="rounded-xl px-4 py-2 text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition"
+                  >
+                    Reject Selected ({checkedIds.length})
+                  </button>
+                </>
+              )}
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                 Total: {items.length}
               </span>
@@ -288,6 +351,14 @@ export default function TrainingPlanAuthorizationPage() {
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-gradient-to-r from-slate-100 to-slate-50">
                   <tr>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={items.length > 0 && checkedIds.length === items.length}
+                        onChange={toggleAll}
+                        className="h-4 w-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
                       Employee
                     </th>
@@ -328,15 +399,24 @@ export default function TrainingPlanAuthorizationPage() {
                   {items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={11}
+                        colSpan={12}
                         className="px-4 py-10 text-center text-sm text-slate-500"
                       >
-                        No authorization requests found.
+                        No training plan approvals found.
                       </td>
                     </tr>
                   ) : (
                     items.map((item) => (
                       <tr key={item.id} className="transition hover:bg-cyan-50/55">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={checkedIds.includes(item.id)}
+                            onChange={() => toggleCheck(item.id)}
+                            disabled={item.status !== "Pending"}
+                            className="h-4 w-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="text-sm font-semibold text-slate-700">
                             {item.emp_name}

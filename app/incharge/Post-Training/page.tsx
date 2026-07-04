@@ -51,6 +51,12 @@ type AuthorizationItem = {
   status: string;
 };
 
+type TrainingOutcome = {
+  id: number;
+  rating: number;
+  name: string;
+};
+
 type FormState = {
   source_plan_id: string;
   plan_desc: string;
@@ -93,6 +99,7 @@ export default function PostTrainingPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [plans, setPlans] = useState<PostTrainingRecord[]>([]);
   const [employeePlans, setEmployeePlans] = useState<TrainingPlanOption[]>([]);
+  const [trainingOutcomes, setTrainingOutcomes] = useState<TrainingOutcome[]>([]);
   const [formData, setFormData] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<FormState>(emptyForm);
@@ -152,6 +159,10 @@ export default function PostTrainingPage() {
         .then((res) => res.json())
         .then((data) => setEmployees(Array.isArray(data) ? data : []));
 
+      void fetch("/api/incharge/training-outcomes")
+        .then((res) => res.json())
+        .then((data) => setTrainingOutcomes(Array.isArray(data) ? data : []));
+
       void loadPlans();
     }, 0);
 
@@ -194,10 +205,14 @@ export default function PostTrainingPage() {
     fd.append("target_date", source.target_date);
     fd.append("Completion_date", source.Completion_date);
     fd.append("training_location", source.training_location);
-    fd.append("effectiveness_desired", source.effectiveness_desired);
-    fd.append("effectiveness_actual", source.effectiveness_actual);
-    fd.append("target_outcome", source.effectiveness_desired);
-    fd.append("actual_outcome", source.effectiveness_actual);
+    // Convert to numeric rating for database storage
+    const targetOutcome = String(source.effectiveness_desired).trim();
+    const actualOutcome = String(source.effectiveness_actual).trim();
+
+    fd.append("effectiveness_desired", targetOutcome);
+    fd.append("effectiveness_actual", actualOutcome);
+    fd.append("target_outcome", targetOutcome);
+    fd.append("actual_outcome", actualOutcome);
     fd.append("gap_fulfilled", String(source.gap_fulfilled));
     fd.append("key_learnings", source.key_learnings);
     fd.append("project_skill_names", source.project_skill_names);
@@ -352,7 +367,7 @@ export default function PostTrainingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_45%,_#eef2ff)] px-4 py-8 sm:px-6 lg:px-8 [font-family:'Manrope',ui-sans-serif,system-ui,sans-serif]">
+    <div className="rounded-3xl border border-white/70 bg-white/70 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="rounded-3xl border border-white/70 bg-white/70 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -367,6 +382,7 @@ export default function PostTrainingPage() {
             <div className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
               Post-Training
             </div>
+          </div>
           </div>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -409,6 +425,7 @@ export default function PostTrainingPage() {
               ))}
             </select>
           </div>
+          
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
@@ -555,8 +572,7 @@ export default function PostTrainingPage() {
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Target Outcome
             </label>
-            <input
-              type="text"
+            <select
               className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.effectiveness_desired}
               onChange={(e) =>
@@ -565,15 +581,21 @@ export default function PostTrainingPage() {
                   effectiveness_desired: e.target.value,
                 })
               }
-            />
+            >
+              <option value="">Select Target Outcome</option>
+              {trainingOutcomes.map((outcome) => (
+                <option key={outcome.id} value={outcome.rating}>
+                  {outcome.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
               Actual Outcome
             </label>
-            <input
-              type="text"
+            <select
               className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
               value={formData.effectiveness_actual}
               onChange={(e) =>
@@ -582,7 +604,14 @@ export default function PostTrainingPage() {
                   effectiveness_actual: e.target.value,
                 })
               }
-            />
+            >
+              <option value="">Select Actual Outcome</option>
+              {trainingOutcomes.map((outcome) => (
+                <option key={outcome.id} value={outcome.rating}>
+                  {outcome.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -861,8 +890,7 @@ export default function PostTrainingPage() {
 
                     <td className="p-2">
                       {editingId === plan.row_key ? (
-                        <input
-                          type="text"
+                        <select
                           className="w-full rounded border px-2 py-1"
                           value={editForm.effectiveness_desired}
                           onChange={(e) =>
@@ -871,14 +899,20 @@ export default function PostTrainingPage() {
                               effectiveness_desired: e.target.value,
                             })
                           }
-                        />
+                        >
+                          <option value="">Select Target Outcome</option>
+                          {trainingOutcomes.map((outcome) => (
+                            <option key={outcome.id} value={outcome.rating}>
+                              {outcome.name}
+                            </option>
+                          ))}
+                        </select>
                       ) : plan.target_outcome ?? plan.effectiveness_desired ?? "-"}
                     </td>
 
                     <td className="p-2">
                       {editingId === plan.row_key ? (
-                        <input
-                          type="text"
+                        <select
                           className="w-full rounded border px-2 py-1"
                           value={editForm.effectiveness_actual}
                           onChange={(e) =>
@@ -887,7 +921,14 @@ export default function PostTrainingPage() {
                               effectiveness_actual: e.target.value,
                             })
                           }
-                        />
+                        >
+                          <option value="">Select Actual Outcome</option>
+                          {trainingOutcomes.map((outcome) => (
+                            <option key={outcome.id} value={outcome.rating}>
+                              {outcome.name}
+                            </option>
+                          ))}
+                        </select>
                       ) : plan.actual_outcome ?? plan.effectiveness_actual ?? "-"}
                     </td>
 
@@ -1040,7 +1081,6 @@ export default function PostTrainingPage() {
           </table>
         </div>
       </div>
-    </div>
     </div>
   );
 }

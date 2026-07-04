@@ -489,9 +489,6 @@ export default function TrainingPlanPage() {
                   </select>
                 </div>
 
-
-                
-
                 <div className="flex items-end">
                   <div className="w-full rounded-lg border border-cyan-100 bg-cyan-50/80 px-4 py-3">
                     <p className="text-sm text-slate-700">
@@ -537,8 +534,6 @@ export default function TrainingPlanPage() {
                     ))}
                   </select>
                 </div>
-
-                
 
                 {planType === "Project" && (
                   <div className="md:col-span-2">

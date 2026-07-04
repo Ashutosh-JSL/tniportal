@@ -220,11 +220,56 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const { id, action } = await req.json();
-    const normalizedAction =
-      action === "approve" ? "Approved" : action === "reject" ? "Rejected" : "";
+    const { id, action, ids } = await req.json();
 
-    if (!id || !normalizedAction) {
+    // Handle bulk operations
+    if (Array.isArray(ids) && ids.length > 0) {
+      if (!action || !["approve", "reject"].includes(action)) {
+        return NextResponse.json(
+          { error: "Invalid action for bulk operation" },
+          { status: 400 },
+        );
+      }
+
+      const pool = await getConnection();
+      await ensureQueueTable(pool);
+
+      // Use a transaction for bulk update
+      const request = pool.request();
+
+      // Build the query with IN clause
+      const placeholders = ids.map((_: any, i: number) => `@id_${i}`).join(", ");
+      ids.forEach((idVal: number, index: number) => {
+        request.input(`id_${index}`, sql.Int, idVal);
+      });
+      request.input("status", sql.NVarChar(20), action === "approve" ? "Approved" : "Rejected");
+      request.input("reviewed_by", sql.VarChar(20), String(currentUser.employeeCode ?? ""));
+      request.input("reviewed_by_name", sql.NVarChar(100), String(currentUser.username ?? ""));
+
+      await request.query(`
+        UPDATE dbo.SkillAuthorizationQueue
+        SET
+          status = @status,
+          reviewed_by = @reviewed_by,
+          reviewed_by_name = @reviewed_by_name,
+          reviewed_at = GETDATE()
+        WHERE id IN (${placeholders})
+      `);
+
+      return NextResponse.json({ success: true, updatedCount: ids.length });
+    }
+
+    // Handle single item operation (legacy)
+    if (!id || !action) {
+      return NextResponse.json(
+        { error: "Invalid review request" },
+        { status: 400 },
+      );
+    }
+
+    const normalizedAction = action === "approve" ? "Approved" : action === "reject" ? "Rejected" : "";
+
+    if (!normalizedAction) {
       return NextResponse.json(
         { error: "Invalid review request" },
         { status: 400 },

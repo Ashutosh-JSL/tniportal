@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Select from "react-select";
 
 interface Skill {
   skill_id: number;
@@ -261,82 +262,159 @@ export default function TrainingPlanSkillPage() {
             </div>
           </div>
 
-          <form onSubmit={submit} className="grid grid-cols-1 gap-4 md:grid-cols-12">
-            <select
-              required
-              className="md:col-span-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-              value={form.employee_id}
-              onChange={(e) =>
-                setForm({ ...form, employee_id: e.target.value })
-              }
-            >
-              <option value="">Select Employee</option>
-              {employees.map((emp) => (
-                <option key={emp.emp_code} value={emp.emp_code}>
-                  {emp.emp_name}
-                </option>
-              ))}
-            </select>
+          <form onSubmit={submit} className="space-y-6">
+            {/* Employee & Skill Area Row */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+              <div className="md:col-span-3">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Employee
+                </label>
+                <select
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  value={form.employee_id}
+                  onChange={(e) =>
+                    setForm({ ...form, employee_id: e.target.value })
+                  }
+                >
+                  <option value="">Select Employee</option>
+                  {employees.map((emp) => (
+                    <option key={emp.emp_code} value={emp.emp_code}>
+                      {emp.emp_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <select
-              required
-              className="md:col-span-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-              value={form.skill_area_id}
-              onChange={(e) => {
-                setForm({ ...form, skill_area_id: e.target.value });
-                setSelectedSkills([]);
-              }}
-            >
-              <option value="">Select Skill Area</option>
-              {skillAreas.map((area) => (
-                <option key={area.id} value={area.id}>
-                  {area.skill_area}
-                </option>
-              ))}
-            </select>
+              <div className="md:col-span-3">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Skill Area
+                </label>
+                <select
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  value={form.skill_area_id}
+                  onChange={(e) => {
+                    setForm({ ...form, skill_area_id: e.target.value });
+                    setSelectedSkills([]);
+                  }}
+                >
+                  <option value="">Select Skill Area</option>
+                  {skillAreas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.skill_area}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <select
-              disabled={!form.skill_area_id}
-              className="md:col-span-2 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-              value=""
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                if (!id) return;
+              <div className="md:col-span-4">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Skill
+                </label>
+                <Select
+                  isDisabled={!form.skill_area_id}
+                  className="react-select-custom"
+                  classNamePrefix="react-select"
+                  placeholder={
+                    form.skill_area_id
+                      ? "Search and select skill..."
+                      : "Select Skill Area first"
+                  }
+                  options={filteredSkills.map((skill) => ({
+                    value: skill.skill_id,
+                    label: skill.skill_name,
+                  }))}
+                  onChange={(option) => {
+                    const id = option?.value;
+                    if (!id) return;
 
-                const skill = filteredSkills.find((item) => item.skill_id === id);
-                if (
-                  skill &&
-                  !selectedSkills.some(
-                    (selected) => selected.skill_id === skill.skill_id,
-                  )
-                ) {
-                  setSelectedSkills([...selectedSkills, skill]);
-                }
-              }}
-            >
-              <option value="">
-                {form.skill_area_id ? "Select Skill" : "Select Skill Area First"}
-              </option>
-              {filteredSkills.map((skill) => (
-                <option key={skill.skill_id} value={skill.skill_id}>
-                  {skill.skill_name}
-                </option>
-              ))}
-            </select>
+                    const skill = filteredSkills.find(
+                      (item) => item.skill_id === id
+                    );
 
-            {selectedSkills.length > 0 ? (
-              <div className="md:col-span-12 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3">
-                <span className="text-sm font-semibold text-slate-700">Skills Selected:</span>
+                    if (
+                      skill &&
+                      !selectedSkills.some(
+                        (selected) => selected.skill_id === skill.skill_id
+                      )
+                    ) {
+                      setSelectedSkills([...selectedSkills, skill]);
+                    }
+                  }}
+                  isClearable
+                  noOptionsMessage={() => "No skills found"}
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      minHeight: "52px",
+                      border: form.skill_area_id ? "1px solid #cbd5e1" : "1px solid #f1f5f9",
+                      backgroundColor: form.skill_area_id ? "#ffffff" : "#f8fafc",
+                    }),
+                    menu: (base) => ({
+                      ...base,
+                      marginTop: "4px",
+                      zIndex: 9999,
+                      marginBottom: "24px",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                    }),
+                  }}
+                />
+              </div>
 
-                <div className="mt-2 flex flex-wrap gap-2">
+              <div className="md:col-span-2">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Levels
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm({
+                      ...form,
+                      desired_level: "",
+                      actual_level: "",
+                    });
+                  }}
+                  className="w-full rounded-xl border border-dashed border-cyan-300 bg-cyan-50/50 px-4 py-3 text-sm font-medium text-cyan-700 transition hover:bg-cyan-50"
+                >
+                  Reset Levels
+                </button>
+              </div>
+            </div>
+
+            {/* Skills Selected Display */}
+            {selectedSkills.length > 0 && (
+              <div className="animate-fade-in rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-cyan-50 p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-sm font-bold text-indigo-900">
+                      Selected Skills ({selectedSkills.length})
+                    </span>
+                    <p className="mt-1 text-xs text-indigo-700/80">
+                      Review your selections before adding
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSkills([])}
+                    className="text-sm font-semibold text-red-600 hover:text-red-700 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
                   {selectedSkills.map((skill) => (
                     <span
                       key={skill.skill_id}
-                      className="flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-700"
+                      className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm ring-1 ring-inset ring-indigo-100 transition hover:shadow-md"
                     >
                       {skill.skill_name}
                       {skill.skill_area ? (
-                        <span className="text-xs font-normal text-indigo-500">
+                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-600">
                           {skill.skill_area}
                         </span>
                       ) : null}
@@ -349,37 +427,70 @@ export default function TrainingPlanSkillPage() {
                             ),
                           )
                         }
-                        className="font-bold text-red-600"
+                        className="flex items-center justify-center rounded-lg p-1 text-red-500 hover:bg-red-50 transition-colors"
                       >
-                        x
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="h-4 w-4"
+                        >
+                          <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                        </svg>
                       </button>
                     </span>
                   ))}
                 </div>
               </div>
-            ) : null}
+            )}
 
-            <input
-              className="md:col-span-2 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-              placeholder="Desired Level"
-              value={form.desired_level}
-              onChange={(e) =>
-                setForm({ ...form, desired_level: e.target.value })
-              }
-            />
-            <input
-              className="md:col-span-2 rounded-xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-              placeholder="Actual Level"
-              value={form.actual_level}
-              onChange={(e) =>
-                setForm({ ...form, actual_level: e.target.value })
-              }
-            />
+            {/* Level Inputs */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+              <div className="sm:col-span-5">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Desired Level
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  required={selectedSkills.length > 0}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 placeholder:text-slate-400"
+                  placeholder="Enter desired level (1-10)"
+                  value={form.desired_level}
+                  onChange={(e) =>
+                    setForm({ ...form, desired_level: e.target.value })
+                  }
+                />
+              </div>
 
-            <div className="md:col-span-4">
-              <button className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(37,99,235,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(37,99,235,0.38)]">
-                Add Skill Mapping
-              </button>
+              <div className="sm:col-span-5">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Actual Level
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  required={selectedSkills.length > 0}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 placeholder:text-slate-400"
+                  placeholder="Enter actual level (1-10)"
+                  value={form.actual_level}
+                  onChange={(e) =>
+                    setForm({ ...form, actual_level: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="sm:col-span-2 flex items-end">
+                <button
+                  type="submit"
+                  disabled={selectedSkills.length === 0}
+                  className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-200 transition hover:-translate-y-1 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                >
+                  Add Mapping
+                </button>
+              </div>
             </div>
           </form>
         </div>
