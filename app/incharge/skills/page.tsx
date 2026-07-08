@@ -50,6 +50,11 @@ export default function TrainingPlanSkillPage() {
     typeof window === "undefined" ? "" : localStorage.getItem("activeRole") ?? "",
   );
 
+  // Defer setting menuPortalTarget to client after hydration
+  useEffect(() => {
+    setMenuPortalTarget(document.body);
+  }, []);
+
   const [form, setForm] = useState({
     employee_id: "",
     skill_area_id: "",
@@ -62,6 +67,8 @@ export default function TrainingPlanSkillPage() {
     desired_level: "",
     actual_level: "",
   });
+  // Initialize menuPortalTarget to null on server, set to document.body after client hydration
+  const [menuPortalTarget, setMenuPortalTarget] = useState<HTMLElement | null>(null);
 
   const loadAll = useCallback(async () => {
     const shouldLoadAuthorization =
@@ -344,7 +351,7 @@ export default function TrainingPlanSkillPage() {
                   }}
                   isClearable
                   noOptionsMessage={() => "No skills found"}
-                  menuPortalTarget={document.body}
+                  menuPortalTarget={menuPortalTarget ?? undefined}
                   menuPosition="fixed"
                   styles={{
                     control: (base) => ({
