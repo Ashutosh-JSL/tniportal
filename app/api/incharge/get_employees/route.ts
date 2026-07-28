@@ -47,22 +47,20 @@ export async function GET(req: Request) {
         .input("code", sql.VarChar(20), code)
         .query(`
           SELECT 
-            EM.Employee_Code AS emp_code,
-            EM.Employee_Name AS emp_name,
-            EM.Grade_Name AS designation,
-            EM.Department_Name AS department,
-            EM.Funcational_Area AS functional_area,
-
-            -- ✅ REAL REPORTING MANAGER
+            DM.Employee_Id AS emp_code,
+            DM.Full_Name AS emp_name,
+            DM.Designation_Name AS designation,
+            DM.Department_Name AS department,
+            ISNULL(EM.Funcational_Area, '') AS functional_area,
             DM.Direct_Manager_Name
 
-          FROM Employee_DB.dbo.Employee_Master EM
+          FROM Employee_DB.dbo.Darwain_Employee_Master DM
 
-          LEFT JOIN Employee_DB.dbo.Darwain_Employee_Master DM
+          LEFT JOIN Employee_DB.dbo.Employee_Master EM
             ON EM.Employee_Code = DM.Employee_Id
 
-          WHERE EM.Employee_Code = @code
-          AND EM.Status = 1
+          WHERE DM.Employee_Id = CAST(@code AS NVARCHAR(20))
+          AND (DM.Date_Of_Exit IS NOT NULL AND LTRIM(RTRIM(DM.Date_Of_Exit)) = '') 
         `);
 
       if (result.recordset.length === 0) {
