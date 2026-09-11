@@ -11,15 +11,7 @@ const verifyUrl = "https://jslaisrv01.jindalstainless.com/api/profile";
 const CHUNK_SIZE = 3933;
 
 function getSecret(): string | undefined {
-  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
-  if (secret) return secret;
-  try {
-    const dotenv = require("dotenv");
-    dotenv.config();
-    return process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
-  } catch {
-    return undefined;
-  }
+  return process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
 }
 
 // Determine if we should use __Secure- prefix (secure URL) or regular
