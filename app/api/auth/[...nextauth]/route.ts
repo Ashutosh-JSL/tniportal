@@ -3,5 +3,6 @@ import { authOptions } from "./options";
 
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
-
+// Next.js 15+ requires named exports instead of default export for API routes
+export const GET = handler;
+export const POST = handler;

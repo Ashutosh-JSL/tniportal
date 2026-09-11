@@ -63,13 +63,17 @@ export const authOptions: NextAuthOptions = {
           }
 
           const user = result.recordset[0];
-          const isPasswordValid = comparePassword(
-            credentials.password,
-            user.Emp_Pwd,
-          );
 
-          if (!isPasswordValid) {
-            throw new Error("Invalid credentials");
+          // Check for SSO marker — skip password validation for SSO users
+          const isSsoLogin = credentials.password === "__sso__";
+          if (!isSsoLogin) {
+            const isPasswordValid = comparePassword(
+              credentials.password,
+              user.Emp_Pwd,
+            );
+            if (!isPasswordValid) {
+              throw new Error("Invalid credentials");
+            }
           }
 
           const roles = Array.from(

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
 
@@ -11,8 +11,61 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(true);
 
   const router = useRouter();
+
+  // Auto-detect SSO QS parameter and log the user in
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qs = params.get("QS");
+    if (!qs) {
+      setSsoLoading(false);
+      return;
+    }
+
+    // Remove QS from URL so page looks clean
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, "", cleanUrl);
+
+    // Call /api/login with the QS param to authenticate + create session cookie
+    (async () => {
+      try {
+        const res = await fetch(`/api/login?QS=${encodeURIComponent(qs)}`, {
+          method: "POST",
+          credentials: "include", // allow browser to store Set-Cookie from response
+        });
+        const data = await res.json();
+
+        if (data.success && data.user) {
+          // /api/login set the session cookie via Set-Cookie header.
+          // HttpOnly cookies can't be read by JS, so just trust the success response.
+
+          // Save user info for client-side use
+          const roles = data.user.roles ?? [];
+          const activeRole = data.user.activeRole ?? roles[0] ?? "";
+          const username = data.user.username ?? "";
+          const employeeCode = data.user.employeeCode ?? "";
+
+          localStorage.setItem("userRoles", JSON.stringify(roles));
+          localStorage.setItem("activeRole", activeRole);
+          localStorage.setItem("username", username);
+          localStorage.setItem("employeeCode", employeeCode);
+
+          window.location.href = "/Home";
+        } else {
+          setErrorMessage(data.message || "SSO login failed. Please try manual login.");
+          setShowLoginForm(true);
+        }
+      } catch (err) {
+        console.error("SSO login error:", err);
+        setErrorMessage("SSO login failed. Please try manual login.");
+        setShowLoginForm(true);
+      } finally {
+        setSsoLoading(false);
+      }
+    })();
+  }, []);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -185,6 +238,15 @@ export default function LoginPage() {
 
         </div>
       </div>
+
+      {/* Loading overlay during SSO */}
+      {ssoLoading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="text-white text-xl font-semibold animate-pulse">
+            Processing SSO login...
+          </div>
+        </div>
+      )}
     </div>
   );
 }
