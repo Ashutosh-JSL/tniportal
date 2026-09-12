@@ -1,33 +1,36 @@
 import * as sql from 'mssql';
  
  
-// Validate environment variables
-if (
-  !process.env.DB_SERVER ||
-  !process.env.DB_DATABASE ||
-  !process.env.DB_USER ||
-  !process.env.DB_PASSWORD
-) {
-  throw new Error('Missing required database environment variables. Please check your .env.local file.');
-}
- 
- 
-const config = {
-  server: process.env.DB_SERVER,
-  database: process.env.DB_DATABASE,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  port : Number(process.env.DB_PORT) || 1433,
-  options: {
-    encrypt: true,
-    trustServerCertificate: true, // Change to false in production with proper SSL
-  },
-  pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000
+function getDbConfig(): sql.config {
+  const missing: string[] = [];
+  if (!process.env.DB_SERVER) missing.push('DB_SERVER');
+  if (!process.env.DB_DATABASE) missing.push('DB_DATABASE');
+  if (!process.env.DB_USER) missing.push('DB_USER');
+  if (!process.env.DB_PASSWORD) missing.push('DB_PASSWORD');
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required database environment variable(s): ${missing.join(', ')}. Please verify your .env.local file and ensure the dev server has been restarted.`
+    );
   }
-};
+
+  return {
+    server: process.env.DB_SERVER!,
+    database: process.env.DB_DATABASE!,
+    user: process.env.DB_USER!,
+    password: process.env.DB_PASSWORD!,
+    port: Number(process.env.DB_PORT) || 1433,
+    options: {
+      encrypt: true,
+      trustServerCertificate: true, // Change to false in production with proper SSL
+    },
+    pool: {
+      max: 10,
+      min: 0,
+      idleTimeoutMillis: 30000,
+    },
+  };
+}
 let pool: sql.ConnectionPool | null = null;
  
 export async function getConnection(): Promise<sql.ConnectionPool> {
@@ -46,6 +49,7 @@ export async function getConnection(): Promise<sql.ConnectionPool> {
   // Create new pool and connect
   try {
     console.log("Creating new database connection...");
+    const config = getDbConfig();
     pool = new sql.ConnectionPool(config);
     await pool.connect();
     console.log("Database Connection Successful.");

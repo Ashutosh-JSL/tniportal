@@ -53,7 +53,11 @@ function getContentType(fileName: string): string {
 /**
  * Validate filename to prevent path traversal attacks
  */
-function isValidFileName(fileName: string): { valid: boolean; error?: string } {
+type FileValidationResult =
+  | { valid: true; filePath: string }
+  | { valid: false; error: string };
+
+function isValidFileName(fileName: string): FileValidationResult {
   // Check for empty filename
   if (!fileName || fileName.trim() === "") {
     return { valid: false, error: "Invalid file name" };
@@ -127,7 +131,8 @@ export async function GET(
 
   try {
     // Verify file exists
-    if (!fs.access(filePath).then(() => true, () => false)) {
+    const fileExists = await fs.access(filePath).then(() => true).catch(() => false);
+    if (!fileExists) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
